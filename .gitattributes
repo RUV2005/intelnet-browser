@@ -1,0 +1,36 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Windows scripts
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Shell scripts
+*.sh text eol=lf
+
+# Source code
+*.cpp text
+*.h text
+*.rs text
+*.toml text
+*.json text
+*.yml text
+*.yaml text
+*.md text
+
+# SVG files
+*.svg text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.dll binary
+*.exe binary
+*.lib binary
+*.onnx binary
+*.gguf binary
+*.bin binary

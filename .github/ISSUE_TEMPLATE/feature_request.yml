@@ -1,0 +1,74 @@
+name: Feature Request
+description: 提议一个新功能
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你的建议！请描述你想要的功能。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题描述
+      description: 你遇到了什么问题？这个功能能解决什么？
+      placeholder: 例如：我希望能够...，但是现在无法...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 建议的解决方案
+      description: 你希望如何实现这个功能？
+      placeholder: 描述你理想中的功能实现方式
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 其他方案
+      description: 你考虑过其他替代方案吗？
+      placeholder: 描述你考虑过的其他实现方式
+    validations:
+      required: false
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: 使用场景
+      description: 这个功能会在什么情况下使用？
+      placeholder: 例如：当用户浏览包含大量图片的网页时...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 优先级
+      description: 这个功能对你有多重要？
+      options:
+        - 低 - 有就更好
+        - 中 - 会提升使用体验
+        - 高 - 非常需要
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: 贡献意愿
+      description: 你愿意帮助实现这个功能吗？
+      options:
+        - label: 我愿意提交 PR 来实现这个功能
+          required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 补充信息
+      description: 其他相关信息、参考资料或截图
+    validations:
+      required: false

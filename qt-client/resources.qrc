@@ -1,0 +1,19 @@
+<RCC>
+    <qresource prefix="/">
+        <file>resources/theme.qss</file>
+        <file>resources/icons/back.svg</file>
+        <file>resources/icons/forward.svg</file>
+        <file>resources/icons/reload.svg</file>
+        <file>resources/icons/close.svg</file>
+        <file>resources/icons/menu.svg</file>
+        <file>resources/icons/mic.svg</file>
+        <file>resources/icons/doc.svg</file>
+        <file>resources/icons/image.svg</file>
+        <file>resources/icons/folder.svg</file>
+        <file>resources/icons/settings.svg</file>
+        <file>resources/icons/sparkle.svg</file>
+        <file>resources/icons/play_white.svg</file>
+        <file>resources/icons/pause_white.svg</file>
+        <file>resources/icons/stop_dark.svg</file>
+    </qresource>
+</RCC>

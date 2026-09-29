@@ -1,0 +1,301 @@
+/* ============================================================
+   IntelNet Qt 主题（Chrome / Edge 风格，浅色）
+   通过 objectName 精准定位，避免影响 WebEngine 内容。
+   ============================================================ */
+
+/* 全局 */
+* {
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    color: #3C4043;
+}
+
+QMainWindow {
+    background: #FFFFFF;
+}
+
+/* ---------------- 工具栏 ---------------- */
+#NavToolBar {
+    background: #FFFFFF;
+    border: none;
+    border-bottom: 1px solid #DADCE0;
+    padding: 8px 12px;
+    spacing: 6px;
+}
+#NavToolBar::separator {
+    background: transparent;
+    width: 8px;
+}
+
+/* 导航按钮（圆形、无边框） */
+#NavToolBar QToolButton {
+    background: transparent;
+    border: none;
+    border-radius: 16px;
+    padding: 8px;
+    min-width: 32px;
+    min-height: 32px;
+}
+#NavToolBar QToolButton:hover {
+    background: #E9E9EA;
+}
+#NavToolBar QToolButton:pressed {
+    background: #DBDCE0;
+}
+#NavToolBar QToolButton:disabled {
+    opacity: 0.4;
+}
+
+/* 地址栏（Omnibox 药丸形） */
+#UrlInput {
+    background: #F1F3F4;
+    border: 1px solid transparent;
+    border-radius: 19px;
+    padding: 0 16px;
+    min-height: 38px;
+    selection-background-color: #B4D5FE;
+}
+#UrlInput:hover {
+    background: #E8EAED;
+}
+#UrlInput:focus {
+    background: #FFFFFF;
+    border: 1px solid #0B57D0;
+}
+
+/* 工具栏“Go”按钮 */
+#GoButton {
+    background: transparent;
+    color: #0B57D0;
+    border: none;
+    border-radius: 19px;
+    padding: 0 18px;
+    min-height: 38px;
+    font-weight: 600;
+}
+#GoButton:hover {
+    background: #F1F3F4;
+}
+#GoButton:pressed {
+    background: #E8EAED;
+}
+
+/* 语音助手按钮（filled tonal，Google 风） */
+#VoiceButton {
+    background: #E8F0FE;
+    color: #0B57D0;
+    border: none;
+    border-radius: 19px;
+    padding: 0 18px;
+    min-height: 38px;
+    font-weight: 600;
+}
+#VoiceButton:hover {
+    background: #D3E3FD;
+}
+#VoiceButton:pressed {
+    background: #B3D2FB;
+}
+
+/* 菜单按钮（三点） */
+#MenuButton {
+    background: transparent;
+    border: none;
+    border-radius: 16px;
+    min-width: 32px;
+    min-height: 32px;
+}
+#MenuButton:hover { background: #E9E9EA; }
+#MenuButton:pressed { background: #DBDCE0; }
+
+/* 菜单 */
+QMenu {
+    background: #FFFFFF;
+    border: 1px solid #DADCE0;
+    border-radius: 8px;
+    padding: 8px 0;
+}
+QMenu::item {
+    padding: 8px 24px;
+    margin: 0 4px;
+    border-radius: 4px;
+}
+QMenu::item:selected {
+    background: #F1F3F4;
+}
+QMenu::separator {
+    height: 1px;
+    background: #E0E3E6;
+    margin: 6px 12px;
+}
+
+/* 状态栏 */
+QStatusBar {
+    background: #FFFFFF;
+    border-top: 1px solid #ECECEC;
+    color: #5F6368;
+    font-size: 12px;
+}
+QStatusBar::item { border: none; }
+
+/* ---------------- 语音面板（卡片） ---------------- */
+#VoicePanel {
+    background: #FFFFFF;
+    border-radius: 12px;
+}
+
+#PanelHeader {
+    background: #FFFFFF;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+#PanelTitle {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1F1F1F;
+}
+#PanelSubtitle {
+    color: #5F6368;
+    font-size: 12px;
+}
+
+#IconButton {
+    background: transparent;
+    border: none;
+    border-radius: 15px;
+    min-width: 30px;
+    min-height: 30px;
+}
+#IconButton:hover { background: #F1F3F4; }
+#IconButton:pressed { background: #E8EAED; }
+
+#PanelSeparator {
+    background: #ECECEC;
+    max-height: 1px;
+}
+
+#PanelContent {
+    background: #FFFFFF;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+/* 状态卡片 */
+#StatusCard {
+    background: #F8F9FA;
+    border: 1px solid #ECECEC;
+    border-radius: 12px;
+}
+#StatusDot {
+    background: #5F6368;
+    border-radius: 6px;
+    min-width: 12px;
+    max-width: 12px;
+    min-height: 12px;
+    max-height: 12px;
+}
+#StatusLabel {
+    font-weight: 600;
+    color: #1F1F1F;
+    font-size: 13px;
+}
+#CurrentText {
+    background: transparent;
+    border: none;
+    font-size: 15px;
+    color: #1F1F1F;
+    line-height: 1.5;
+}
+
+/* 控制按钮 */
+#PrimaryButton {
+    background: #0B57D0;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 22px;
+    min-height: 44px;
+    font-weight: 600;
+    padding: 0 20px;
+}
+#PrimaryButton:hover { background: #0A50B8; }
+#PrimaryButton:pressed { background: #0842A0; }
+#PrimaryButton:disabled { background: #D3D9E0; color: #8A919A; }
+
+#SecondaryButton {
+    background: #FFFFFF;
+    color: #1F1F1F;
+    border: 1px solid #DADCE0;
+    border-radius: 22px;
+    min-height: 44px;
+    font-weight: 600;
+    padding: 0 20px;
+}
+#SecondaryButton:hover { background: #F8F9FA; border-color: #0B57D0; color: #0B57D0; }
+#SecondaryButton:pressed { background: #ECECEC; }
+#SecondaryButton:disabled { color: #8A919A; border-color: #ECECEC; }
+
+/* 快速功能标题 */
+#SectionTitle {
+    color: #5F6368;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+}
+
+/* 快速功能按钮（扁平列表项） */
+#ActionButton {
+    background: #FFFFFF;
+    border: 1px solid #E0E3E6;
+    border-radius: 10px;
+    min-height: 56px;
+    text-align: left;
+    padding: 8px 12px;
+}
+#ActionButton:hover { background: #F8F9FA; border-color: #0B57D0; }
+#ActionButton:pressed { background: #ECECEC; }
+
+#ActionTitle {
+    font-weight: 600;
+    color: #1F1F1F;
+    font-size: 13px;
+}
+#ActionHint {
+    color: #80868B;
+    font-size: 11px;
+    font-family: Consolas, monospace;
+}
+
+/* 滚动条（简洁） */
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 0;
+}
+QScrollBar::handle:vertical {
+    background: #DADCE0;
+    border-radius: 5px;
+    min-height: 30px;
+}
+QScrollBar::handle:vertical:hover { background: #BDC1C6; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }
+
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 0; }
+QScrollBar::handle:horizontal { background: #DADCE0; border-radius: 5px; min-width: 30px; }
+QScrollBar::handle:horizontal:hover { background: #BDC1C6; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }
+
+/* 焦点环（无障碍） */
+#UrlInput:focus, #VoiceButton:focus, #GoButton:focus, #MenuButton:focus,
+#PrimaryButton:focus, #SecondaryButton:focus, #ActionButton:focus {
+    outline: none;
+}
+
+QToolTip {
+    background: #202124;
+    color: #FFFFFF;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+}

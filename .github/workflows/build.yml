@@ -1,0 +1,116 @@
+name: Build IntelNet Browser
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-core:
+    name: Build Rust Core
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable-msvc
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          rust-core/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build Rust Core
+      working-directory: rust-core
+      run: cargo build --release
+
+    - name: Run Rust Tests
+      working-directory: rust-core
+      run: cargo test --release
+
+    - name: Upload Rust DLL
+      uses: actions/upload-artifact@v3
+      with:
+        name: rust-core-dll
+        path: |
+          rust-core/target/release/intelnet_core.dll
+          rust-core/target/release/intelnet_core.dll.lib
+        retention-days: 7
+
+  qt-client:
+    name: Build Qt Client
+    runs-on: windows-latest
+    needs: rust-core
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Rust DLL
+      uses: actions/download-artifact@v3
+      with:
+        name: rust-core-dll
+        path: rust-core/target/release/
+
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v1.1
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.8.0'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2022_64'
+        modules: 'qtwebengine'
+        cache: true
+
+    - name: Configure CMake
+      working-directory: qt-client
+      run: |
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${{ env.Qt6_DIR }}
+
+    - name: Build Qt Client
+      working-directory: qt-client
+      run: cmake --build build --config Release
+
+    - name: Upload Qt Executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: intelnet-browser
+        path: qt-client/build/Release/IntelNetBrowser.exe
+        retention-days: 7
+
+  lint:
+    name: Lint and Format Check
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable-msvc
+        components: rustfmt, clippy
+
+    - name: Check Rust formatting
+      working-directory: rust-core
+      run: cargo fmt --check
+
+    - name: Run Clippy
+      working-directory: rust-core
+      run: cargo clippy -- -D warnings

@@ -1,0 +1,54 @@
+# Rust
+rust-core/target/
+rust-core/Cargo.lock
+
+# Qt Build
+qt-client/build/
+qt-client/.vs/
+qt-client/out/
+qt-client/.cache/
+qt-client/CMakeSettings.json
+
+# Visual Studio
+*.user
+*.suo
+*.sln
+*.vcxproj
+*.vcxproj.filters
+.vs/
+out/
+
+# Compiled binaries
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+*.obj
+*.exp
+
+# Qt generated
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+
+# Large model files (use Git LFS or download separately)
+resources/models/*.gguf
+resources/models/*.bin
+resources/piper/*.onnx
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test artifacts
+test_ffi.exe
+*.log

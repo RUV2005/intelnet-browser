@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: windows-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+
+    steps:
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+  build-release:
+    name: Build Release
+    runs-on: windows-latest
+    needs: create-release
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable-msvc
+
+    - name: Build Rust Core
+      working-directory: rust-core
+      run: cargo build --release
+
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v1.1
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.8.0'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2022_64'
+        modules: 'qtwebengine'
+
+    - name: Build Qt Client
+      working-directory: qt-client
+      run: |
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${{ env.Qt6_DIR }}
+        cmake --build build --config Release
+
+    - name: Package Release
+      run: |
+        mkdir release-package
+        cp qt-client/build/Release/IntelNetBrowser.exe release-package/
+        cp rust-core/target/release/intelnet_core.dll release-package/
+        cp README.md release-package/
+        cp LICENSE release-package/
+        cp BUILD_GUIDE.md release-package/
+
+    - name: Create ZIP
+      run: |
+        Compress-Archive -Path release-package/* -DestinationPath IntelNetBrowser-${{ github.ref_name }}-windows-x64.zip
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./IntelNetBrowser-${{ github.ref_name }}-windows-x64.zip
+        asset_name: IntelNetBrowser-${{ github.ref_name }}-windows-x64.zip
+        asset_content_type: application/zip
