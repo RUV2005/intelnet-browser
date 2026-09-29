@@ -75,8 +75,14 @@ jobs:
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2022_64'
-        modules: 'qtwebengine qtwebchannel'
+        modules: 'qtwebengine qtwebchannel qtpositioning qtwebview'
         cache: true
+
+    - name: Debug Qt Installation
+      run: |
+        echo "Qt6_DIR: ${{ env.Qt6_DIR }}"
+        dir "${{ env.Qt6_DIR }}\lib\cmake" /s /b | findstr WebEngine
+        dir "${{ env.Qt6_DIR }}\lib\cmake" /s /b | findstr WebChannel
 
     - name: Configure CMake
       working-directory: qt-client
