@@ -75,7 +75,7 @@ jobs:
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2022_64'
-        modules: 'qtwebengine'
+        modules: 'qtwebengine qtwebchannel'
         cache: true
 
     - name: Configure CMake
