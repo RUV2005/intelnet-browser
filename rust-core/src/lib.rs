@@ -245,26 +245,32 @@ mod tests {
         let raw_ptr = test_str.into_raw();
 
         // Should not crash
-        intelnet_free_string(raw_ptr);
+        unsafe {
+            intelnet_free_string(raw_ptr);
+        }
     }
 
     #[test]
     fn test_free_null_string() {
         // Should handle null gracefully
-        intelnet_free_string(std::ptr::null_mut());
+        unsafe {
+            intelnet_free_string(std::ptr::null_mut());
+        }
     }
 
     #[test]
     fn test_speak_null_text() {
         assert_eq!(intelnet_init(), 0);
-        assert_eq!(intelnet_speak(std::ptr::null()), -1);
+        unsafe {
+            assert_eq!(intelnet_speak(std::ptr::null()), -1);
+        }
         intelnet_shutdown();
     }
 
     #[test]
     fn test_analyze_null_image() {
         assert_eq!(intelnet_init(), 0);
-        let result = intelnet_analyze_image(std::ptr::null());
+        let result = unsafe { intelnet_analyze_image(std::ptr::null()) };
         assert!(result.is_null());
         intelnet_shutdown();
     }
@@ -272,7 +278,7 @@ mod tests {
     #[test]
     fn test_summarize_null_text() {
         assert_eq!(intelnet_init(), 0);
-        let result = intelnet_summarize_text(std::ptr::null());
+        let result = unsafe { intelnet_summarize_text(std::ptr::null()) };
         assert!(result.is_null());
         intelnet_shutdown();
     }
