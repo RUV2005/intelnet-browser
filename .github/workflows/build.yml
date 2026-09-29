@@ -79,10 +79,11 @@ jobs:
         cache: true
 
     - name: Debug Qt Installation
+      shell: pwsh
       run: |
         echo "Qt6_DIR: ${{ env.Qt6_DIR }}"
-        dir "${{ env.Qt6_DIR }}\lib\cmake" /s /b | findstr WebEngine
-        dir "${{ env.Qt6_DIR }}\lib\cmake" /s /b | findstr WebChannel
+        Get-ChildItem -Path "${{ env.Qt6_DIR }}\lib\cmake" -Recurse -Filter "*WebEngine*" | Select-Object FullName
+        Get-ChildItem -Path "${{ env.Qt6_DIR }}\lib\cmake" -Recurse -Filter "*WebChannel*" | Select-Object FullName
 
     - name: Configure CMake
       working-directory: qt-client
