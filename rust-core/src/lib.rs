@@ -52,7 +52,13 @@ pub extern "C" fn intelnet_init_model() -> i32 {
 
 /// 分析图片
 /// image_data: 图片数据（data URL、http URL 或本地路径）
+/// 分析图片内容（支持本地路径或 HTTP URL）
 /// 返回 JSON 字符串，需要调用 intelnet_free_string 释放
+///
+/// # Safety
+///
+/// 调用者必须确保 `image_data` 是有效的 null-terminated C 字符串指针。
+/// 返回的指针必须通过 `intelnet_free_string` 释放。
 #[no_mangle]
 pub unsafe extern "C" fn intelnet_analyze_image(image_data: *const c_char) -> *mut c_char {
     if image_data.is_null() {
@@ -102,6 +108,13 @@ pub unsafe extern "C" fn intelnet_analyze_image(image_data: *const c_char) -> *m
 /// 总结一段纯文本（网页内容）
 /// text: 网页正文
 /// 返回 JSON 字符串，需要调用 intelnet_free_string 释放
+/// 总结文本内容
+/// 返回 JSON 字符串，需要调用 intelnet_free_string 释放
+///
+/// # Safety
+///
+/// 调用者必须确保 `text` 是有效的 null-terminated C 字符串指针。
+/// 返回的指针必须通过 `intelnet_free_string` 释放。
 #[no_mangle]
 pub unsafe extern "C" fn intelnet_summarize_text(text: *const c_char) -> *mut c_char {
     if text.is_null() {
@@ -150,6 +163,12 @@ pub unsafe extern "C" fn intelnet_summarize_text(text: *const c_char) -> *mut c_
 /// TTS 朗读文本
 /// text: 要朗读的文本
 /// 返回 0 表示成功，非 0 表示失败
+/// 语音朗读文本
+/// 返回 0 表示成功，-1 表示参数错误，-2 表示 TTS 未初始化
+///
+/// # Safety
+///
+/// 调用者必须确保 `text` 是有效的 null-terminated C 字符串指针。
 #[no_mangle]
 pub unsafe extern "C" fn intelnet_speak(text: *const c_char) -> i32 {
     if text.is_null() {
@@ -181,6 +200,11 @@ pub extern "C" fn intelnet_stop_speaking() {
 }
 
 /// 释放 Rust 返回的字符串
+///
+/// # Safety
+///
+/// 调用者必须确保 `ptr` 是通过 Rust FFI 函数返回的有效指针，
+/// 且该指针只能被释放一次。
 #[no_mangle]
 pub unsafe extern "C" fn intelnet_free_string(ptr: *mut c_char) {
     if !ptr.is_null() {
