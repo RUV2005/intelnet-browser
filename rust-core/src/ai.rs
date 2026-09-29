@@ -104,7 +104,11 @@ fn load_image_bytes(image_data: &str) -> Result<Vec<u8>> {
             .bytes()
             .context("无法读取图片数据")?
             .to_vec();
-        logln!("图片下载耗时: {:?}，大小: {} 字节", t.elapsed(), bytes.len());
+        logln!(
+            "图片下载耗时: {:?}，大小: {} 字节",
+            t.elapsed(),
+            bytes.len()
+        );
         Ok(bytes)
     } else {
         std::fs::read(image_data).context("无法读取图片文件")
@@ -395,7 +399,11 @@ impl ModelManager {
         let raw = load_image_bytes(image_data)?;
         let t = Instant::now();
         let jpeg = shrink_for_model(&raw)?;
-        logln!("图片预处理耗时: {:?}，发送 {} 字节", t.elapsed(), jpeg.len());
+        logln!(
+            "图片预处理耗时: {:?}，发送 {} 字节",
+            t.elapsed(),
+            jpeg.len()
+        );
 
         let mut guard = self.lock();
         Self::ensure_running(&mut guard)?;
@@ -405,7 +413,11 @@ impl ModelManager {
             .as_ref()
             .context("服务未运行")?
             .describe_stream(&jpeg, on_delta)?;
-        logln!("推理耗时: {:?}，总耗时: {:?}", t.elapsed(), t_total.elapsed());
+        logln!(
+            "推理耗时: {:?}，总耗时: {:?}",
+            t.elapsed(),
+            t_total.elapsed()
+        );
         Ok(text)
     }
 
@@ -415,11 +427,7 @@ impl ModelManager {
     }
 
     /// 流式总结：每生成一段文字就调用 on_delta。
-    pub fn summarize_text_stream(
-        &self,
-        text: &str,
-        on_delta: impl FnMut(&str),
-    ) -> Result<String> {
+    pub fn summarize_text_stream(&self, text: &str, on_delta: impl FnMut(&str)) -> Result<String> {
         let t_total = Instant::now();
         let mut guard = self.lock();
         Self::ensure_running(&mut guard)?;
@@ -429,7 +437,11 @@ impl ModelManager {
             .as_ref()
             .context("服务未运行")?
             .summarize_stream(text, on_delta)?;
-        logln!("摘要推理耗时: {:?}，总耗时: {:?}", t.elapsed(), t_total.elapsed());
+        logln!(
+            "摘要推理耗时: {:?}，总耗时: {:?}",
+            t.elapsed(),
+            t_total.elapsed()
+        );
         Ok(result)
     }
 

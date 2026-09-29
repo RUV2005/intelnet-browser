@@ -14,7 +14,7 @@ pub struct SentenceSplitter {
 }
 
 impl SentenceSplitter {
-    const MIN_CHARS: usize = 8;  // 太短的片段并入下一句
+    const MIN_CHARS: usize = 8; // 太短的片段并入下一句
     const MAX_CHARS: usize = 60; // 超长时在逗号处强行切开
 
     pub fn new() -> Self {
@@ -237,7 +237,11 @@ impl PiperEngine {
                 let t = std::time::Instant::now();
                 match PiperWorker::spawn(&model_path_clone) {
                     Ok(w) => {
-                        println!("  工作进程 {} 已启动并预热完成，耗时 {:?}", i + 1, t.elapsed());
+                        println!(
+                            "  工作进程 {} 已启动并预热完成，耗时 {:?}",
+                            i + 1,
+                            t.elapsed()
+                        );
                         tx_clone.send(Ok(w)).ok();
                     }
                     Err(e) => {
@@ -262,7 +266,11 @@ impl PiperEngine {
             anyhow::bail!("无法启动任何 TTS 工作进程");
         }
 
-        println!("✓ Piper 引擎就绪，{} 个工作进程，采样率 {} Hz", workers.len(), sample_rate);
+        println!(
+            "✓ Piper 引擎就绪，{} 个工作进程，采样率 {} Hz",
+            workers.len(),
+            sample_rate
+        );
         Ok(Self {
             workers: Arc::new(Mutex::new(workers)),
             sample_rate,
@@ -300,8 +308,8 @@ impl PiperEngine {
 // ───────────────────────── 播放队列（保证顺序播放） ─────────────────────────
 
 enum Cmd {
-    Speak(u64, u64, String),              // (代次, 句子编号, 文本)
-    SpeakReady(u64, u64, Vec<i16>, u32),  // (代次, 句子编号, 采样数据, 采样率)
+    Speak(u64, u64, String),             // (代次, 句子编号, 文本)
+    SpeakReady(u64, u64, Vec<i16>, u32), // (代次, 句子编号, 采样数据, 采样率)
     Clear,
 }
 
@@ -379,9 +387,12 @@ impl TtsPlayer {
                                         t.elapsed()
                                     );
                                     // 合成期间可能又被打断，再检查一次
-                                    if !samples.is_empty() && ep == epoch_check.load(Ordering::SeqCst) {
+                                    if !samples.is_empty()
+                                        && ep == epoch_check.load(Ordering::SeqCst)
+                                    {
                                         // 发送结果回主线程
-                                        let _ = tx_result.send(Cmd::SpeakReady(ep, seq, samples, rate));
+                                        let _ =
+                                            tx_result.send(Cmd::SpeakReady(ep, seq, samples, rate));
                                     }
                                 }
                                 Err(e) => eprintln!("[tts] 句子 {} 合成失败: {e}", seq),
@@ -413,7 +424,11 @@ impl TtsPlayer {
             }
         });
 
-        Self { tx, epoch, next_seq }
+        Self {
+            tx,
+            epoch,
+            next_seq,
+        }
     }
 
     /// 排队朗读一句；播放队列会按顺序无缝播放
