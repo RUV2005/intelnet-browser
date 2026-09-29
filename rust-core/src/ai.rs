@@ -325,6 +325,7 @@ impl LlamaServer {
         self.stream_completion(content, SUMMARY_MAX_TOKENS, 0.3, on_delta)
     }
 
+    #[allow(dead_code)]
     fn describe(&self, jpeg: &[u8]) -> Result<String> {
         self.describe_stream(jpeg, |_| {})
     }

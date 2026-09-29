@@ -54,12 +54,12 @@ pub extern "C" fn intelnet_init_model() -> i32 {
 /// image_data: 图片数据（data URL、http URL 或本地路径）
 /// 返回 JSON 字符串，需要调用 intelnet_free_string 释放
 #[no_mangle]
-pub extern "C" fn intelnet_analyze_image(image_data: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn intelnet_analyze_image(image_data: *const c_char) -> *mut c_char {
     if image_data.is_null() {
         return std::ptr::null_mut();
     }
 
-    let c_str = unsafe { CStr::from_ptr(image_data) };
+    let c_str = CStr::from_ptr(image_data);
     let image_str = match c_str.to_str() {
         Ok(s) => s,
         Err(_) => return std::ptr::null_mut(),
@@ -103,12 +103,12 @@ pub extern "C" fn intelnet_analyze_image(image_data: *const c_char) -> *mut c_ch
 /// text: 网页正文
 /// 返回 JSON 字符串，需要调用 intelnet_free_string 释放
 #[no_mangle]
-pub extern "C" fn intelnet_summarize_text(text: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn intelnet_summarize_text(text: *const c_char) -> *mut c_char {
     if text.is_null() {
         return std::ptr::null_mut();
     }
 
-    let c_str = unsafe { CStr::from_ptr(text) };
+    let c_str = CStr::from_ptr(text);
     let text_str = match c_str.to_str() {
         Ok(s) => s,
         Err(_) => return std::ptr::null_mut(),
@@ -151,12 +151,12 @@ pub extern "C" fn intelnet_summarize_text(text: *const c_char) -> *mut c_char {
 /// text: 要朗读的文本
 /// 返回 0 表示成功，非 0 表示失败
 #[no_mangle]
-pub extern "C" fn intelnet_speak(text: *const c_char) -> i32 {
+pub unsafe extern "C" fn intelnet_speak(text: *const c_char) -> i32 {
     if text.is_null() {
         return -1;
     }
 
-    let c_str = unsafe { CStr::from_ptr(text) };
+    let c_str = CStr::from_ptr(text);
     let text_str = match c_str.to_str() {
         Ok(s) => s,
         Err(_) => return -1,
@@ -182,11 +182,9 @@ pub extern "C" fn intelnet_stop_speaking() {
 
 /// 释放 Rust 返回的字符串
 #[no_mangle]
-pub extern "C" fn intelnet_free_string(ptr: *mut c_char) {
+pub unsafe extern "C" fn intelnet_free_string(ptr: *mut c_char) {
     if !ptr.is_null() {
-        unsafe {
-            let _ = CString::from_raw(ptr);
-        }
+        let _ = CString::from_raw(ptr);
     }
 }
 

@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 
 // ───────────────────────── 切句器 ─────────────────────────
 
+#[allow(dead_code)]
 pub struct SentenceSplitter {
     buf: String,
 }
@@ -36,7 +37,7 @@ impl SentenceSplitter {
                     continue;
                 }
                 let c = chars[i];
-                let next_ws = chars.get(i + 1).map_or(false, |x| x.is_whitespace());
+                let next_ws = chars.get(i + 1).is_some_and(|x| x.is_whitespace());
                 let prev_digit = i > 0 && chars[i - 1].is_ascii_digit();
 
                 let hard = matches!(c, '。' | '！' | '？' | '；' | '\n')
@@ -108,7 +109,7 @@ impl PiperWorker {
 
         let mut cmd = Command::new(&python_exe);
         cmd.arg(&script_path)
-            .arg(&model_path)
+            .arg(model_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
@@ -185,8 +186,10 @@ impl PiperWorker {
 
         // 转换为 i16 采样
         let samples: Vec<i16> = pcm_buf
-            .chunks_exact(2)
-            .map(|b| i16::from_le_bytes([b[0], b[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|b| i16::from_le_bytes(*b))
             .collect();
 
         Ok(samples)
@@ -256,10 +259,8 @@ impl PiperEngine {
 
         // 收集所有启动好的 worker
         let mut workers = Vec::new();
-        for result in rx {
-            if let Ok(w) = result {
-                workers.push(w);
-            }
+        for w in rx.into_iter().flatten() {
+            workers.push(w);
         }
 
         if workers.is_empty() {
