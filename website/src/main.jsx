@@ -636,30 +636,6 @@ function ArchitectureSection() {
 
   useLayoutEffect(() => {
     const ctx = gsap.context(() => {
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          trigger: sectionRef.current,
-          start: 'top 60%',
-          end: 'top 20%',
-          scrub: 1,
-        }
-      });
-
-      tl.from(titleRef.current, {
-        y: 60,
-        opacity: 0,
-      })
-      .from(layersRef.current, {
-        y: 40,
-        opacity: 0,
-        stagger: 0.2,
-      }, '-=0.3')
-      .from(featuresRef.current, {
-        y: 30,
-        opacity: 0,
-        stagger: 0.15,
-      }, '-=0.4');
-
       layersRef.current.forEach(layer => {
         if (layer) {
           layer.addEventListener('mouseenter', () => {
@@ -734,17 +710,6 @@ function CTASection() {
 
   useLayoutEffect(() => {
     const ctx = gsap.context(() => {
-      gsap.from(contentRef.current, {
-        scrollTrigger: {
-          trigger: sectionRef.current,
-          start: 'top 70%',
-          end: 'top 40%',
-          scrub: 1,
-        },
-        y: 50,
-        opacity: 0,
-      });
-
       buttonsRef.current.forEach(btn => {
         if (btn) {
           btn.addEventListener('mouseenter', () => {
