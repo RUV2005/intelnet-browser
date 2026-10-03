@@ -472,14 +472,24 @@ function InteractiveDemoSection() {
         if (buffer.trim()) consumeEvent(buffer);
         result = null;
       } else if (activeTab === 'voice') {
-        const response = await fetch(`${API_BASE}/text-to-speech`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: inputValue })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || `请求失败 (${response.status})`);
-        result = data.success ? data.result : `错误: ${data.error}`;
+        const text = inputValue.trim();
+        if (!text) throw new Error('请输入要朗读的文本');
+        if (!('speechSynthesis' in window)) throw new Error('当前浏览器不支持语音朗读');
+        const synth = window.speechSynthesis;
+        synth.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'zh-CN';
+        utter.rate = 1;
+        const setZhVoice = () => {
+          const v = synth.getVoices().find((x) => x.lang && x.lang.toLowerCase().startsWith('zh'));
+          if (v) utter.voice = v;
+        };
+        setZhVoice();
+        synth.onvoiceschanged = setZhVoice;
+        utter.onend = () => setResponse('朗读完成');
+        utter.onerror = (e) => setResponse(`朗读出错: ${e.error || '未知错误'}`);
+        synth.speak(utter);
+        result = '正在朗读...';
       }
 
       if (activeTab !== 'image') setResponse(result);
