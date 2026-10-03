@@ -922,10 +922,6 @@ button {
   box-shadow: 0 2px 8px rgba(117, 102, 255, 0.3);
 }
 
-.tab.active::before {
-  opacity: 1;
-}
-
 .workflow-title {
   font-size: 42px;
   color: var(--ink);
