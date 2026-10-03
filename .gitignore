@@ -36,6 +36,18 @@ qrc_*.cpp
 resources/models/*.gguf
 resources/models/*.bin
 resources/piper/*.onnx
+resources/models/**
+resources/piper/**
+resources/llama/**
+
+# Local tools, worktrees, and demo artifacts
+.claude/
+.impeccable/
+website/.claude/
+website/website/
+test.jpg
+test.png
+test1.png
 
 # OS files
 .DS_Store
