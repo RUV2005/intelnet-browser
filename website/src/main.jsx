@@ -177,7 +177,14 @@ function Header() {
           <button className="lang-switcher" onClick={toggleLanguage}>
             {lang === 'zh' ? 'EN' : '中文'}
           </button>
-          <a href="#github" className="nav-cta">{t.nav.github}</a>
+          <a
+            href="https://github.com/RUV2005/intelnet-browser"
+            className="nav-cta"
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t.nav.github}
+          </a>
         </nav>
       </div>
     </header>
@@ -775,7 +782,7 @@ function CTASection() {
         <div className="cta-buttons">
           <a
             ref={el => buttonsRef.current[0] = el}
-            href="https://github.com/yourusername/intelnet"
+            href="https://github.com/RUV2005/intelnet-browser"
             className="btn btn-primary"
             id="github"
           >
@@ -783,7 +790,7 @@ function CTASection() {
           </a>
           <a
             ref={el => buttonsRef.current[1] = el}
-            href="https://github.com/yourusername/intelnet/blob/main/BUILD_GUIDE.md"
+            href="https://github.com/RUV2005/intelnet-browser/blob/main/BUILD_GUIDE.md"
             className="btn btn-secondary"
           >
             {t.cta.buildGuide}
@@ -837,18 +844,18 @@ function Footer() {
             <h4>{t.footer.product.title}</h4>
             <a ref={el => linksRef.current[0] = el} href="#demo">{t.footer.product.demo}</a>
             <a ref={el => linksRef.current[1] = el} href="#architecture">{t.footer.product.architecture}</a>
-            <a ref={el => linksRef.current[2] = el} href="https://github.com/yourusername/intelnet/blob/main/CHANGELOG.md">{t.footer.product.changelog}</a>
+            <a ref={el => linksRef.current[2] = el} href="https://github.com/RUV2005/intelnet-browser/blob/main/CHANGELOG.md">{t.footer.product.changelog}</a>
           </div>
           <div className="footer-column">
             <h4>{t.footer.developers.title}</h4>
-            <a ref={el => linksRef.current[3] = el} href="https://github.com/yourusername/intelnet">{t.footer.developers.github}</a>
-            <a ref={el => linksRef.current[4] = el} href="https://github.com/yourusername/intelnet/blob/main/BUILD_GUIDE.md">{t.footer.developers.buildGuide}</a>
-            <a ref={el => linksRef.current[5] = el} href="https://github.com/yourusername/intelnet/blob/main/CONTRIBUTING.md">{t.footer.developers.contributing}</a>
+            <a ref={el => linksRef.current[3] = el} href="https://github.com/RUV2005/intelnet-browser">{t.footer.developers.github}</a>
+            <a ref={el => linksRef.current[4] = el} href="https://github.com/RUV2005/intelnet-browser/blob/main/BUILD_GUIDE.md">{t.footer.developers.buildGuide}</a>
+            <a ref={el => linksRef.current[5] = el} href="https://github.com/RUV2005/intelnet-browser/blob/main/CONTRIBUTING.md">{t.footer.developers.contributing}</a>
           </div>
           <div className="footer-column">
             <h4>{t.footer.resources.title}</h4>
-            <a ref={el => linksRef.current[6] = el} href="https://github.com/yourusername/intelnet/blob/main/README.md">{t.footer.resources.docs}</a>
-            <a ref={el => linksRef.current[7] = el} href="https://github.com/yourusername/intelnet/issues">{t.footer.resources.issues}</a>
+            <a ref={el => linksRef.current[6] = el} href="https://github.com/RUV2005/intelnet-browser/blob/main/README.md">{t.footer.resources.docs}</a>
+            <a ref={el => linksRef.current[7] = el} href="https://github.com/RUV2005/intelnet-browser/issues">{t.footer.resources.issues}</a>
           </div>
         </div>
       </div>
