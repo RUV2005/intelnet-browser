@@ -1,7 +1,6 @@
 #include "browser_page.h"
 
 #include <QDebug>
-#include <QSet>
 #include <QUrlQuery>
 
 namespace IntelNet {
@@ -79,9 +78,7 @@ bool IntelNetPage::acceptNavigationRequest(const QUrl &url, NavigationType type,
     if (host.isEmpty()) return true;
 
     redirectHistory_.append({host, now});
-    QSet<QString> hosts;
-    for (const auto &entry : redirectHistory_) hosts.insert(entry.first);
-    if (redirectHistory_.size() >= 4 && hosts.size() >= 4) {
+    if (redirectHistory_.size() >= 4) {
         qWarning() << "已拦截可疑连环跳转:" << url;
         redirectHistory_.clear();
         emit redirectChainBlocked(url);
