@@ -12,6 +12,7 @@
 #include <QMenu>
 #include <QResizeEvent>
 #include <QMoveEvent>
+#include <QList>
 #include <memory>
 
 #include "browser_widget.h"
@@ -44,6 +45,7 @@ private slots:
     void onVoiceButtonClicked();
     void onAnalyzePageClicked();
     void onAnalyzeImageClicked();
+    void onDescribeMissingImagesClicked();
     void onUploadImageClicked();
 
 private:
@@ -52,6 +54,7 @@ private:
     void setupConnections();
     void initializeRustCore();
     void showVoicePanel();
+    void analyzeNextMissingImage();
 
     // UI 组件
     QToolBar *toolbar_;
@@ -69,6 +72,11 @@ private:
 
     // Rust 桥接
     std::unique_ptr<RustBridge> rustBridge_;
+
+    // 当前页面的无 alt 图片分析队列
+    QList<BrowserWidget::MissingAltImage> missingAltImages_;
+    int missingAltIndex_;
+    bool analyzingMissingImages_;
 };
 
 } // namespace IntelNet

@@ -8,6 +8,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QByteArray>
+#include <QDebug>
+#include <QTimer>
 
 namespace IntelNet {
 
@@ -24,6 +26,8 @@ MainWindow::MainWindow(QWidget *parent)
     , browserWidget_(nullptr)
     , voicePanel_(nullptr)
     , rustBridge_(nullptr)
+    , missingAltIndex_(0)
+    , analyzingMissingImages_(false)
 {
     setupUi();
     setupToolbar();
@@ -134,6 +138,7 @@ void MainWindow::setupToolbar() {
             "Ctrl+Shift+V：打开/关闭语音助手\n"
             "Ctrl+Shift+S：页面摘要\n"
             "Ctrl+Shift+A：分析网页图片\n"
+            "Alt+D：描述页面中无 alt 的图片\n"
             "Ctrl+Shift+U：上传本地图片");
     });
     connect(aboutAction, &QAction::triggered, this, [this]() {
@@ -145,6 +150,10 @@ void MainWindow::setupToolbar() {
     // 快捷键
     QShortcut *voiceShortcut = new QShortcut(QKeySequence("Ctrl+Shift+V"), this);
     connect(voiceShortcut, &QShortcut::activated, this, &MainWindow::onVoiceButtonClicked);
+
+    QShortcut *describeImagesShortcut = new QShortcut(QKeySequence("Alt+D"), this);
+    connect(describeImagesShortcut, &QShortcut::activated,
+            this, &MainWindow::onDescribeMissingImagesClicked);
 }
 
 void MainWindow::setupConnections() {
@@ -310,6 +319,78 @@ void MainWindow::onAnalyzeImageClicked() {
         voicePanel_->analyzeImageData(imageData);
         statusBar()->showMessage("正在分析所选图片...", 3000);
     });
+}
+
+void MainWindow::onDescribeMissingImagesClicked() {
+    if (analyzingMissingImages_) {
+        statusBar()->showMessage("正在分析页面图片，请稍候", 3000);
+        return;
+    }
+
+    showVoicePanel();
+    voicePanel_->showBusy("正在查找没有替代文字的图片...");
+    statusBar()->showMessage("正在查找没有替代文字的图片...", 3000);
+
+    browserWidget_->requestImagesWithoutAlt([this](
+        const QList<BrowserWidget::MissingAltImage> &images) {
+        missingAltImages_ = images;
+        missingAltIndex_ = 0;
+
+        if (missingAltImages_.isEmpty()) {
+            analyzingMissingImages_ = false;
+            voicePanel_->showTextResult("当前页面没有找到需要描述的图片。");
+            statusBar()->showMessage("当前页面没有找到需要描述的图片", 3000);
+            return;
+        }
+
+        if (!rustBridge_->InitModel()) {
+            voicePanel_->showError("AI 模型初始化失败");
+            statusBar()->showMessage("AI 模型初始化失败", 3000);
+            return;
+        }
+
+        analyzingMissingImages_ = true;
+        analyzeNextMissingImage();
+    });
+}
+
+void MainWindow::analyzeNextMissingImage() {
+    if (!analyzingMissingImages_ || missingAltIndex_ >= missingAltImages_.size()) {
+        analyzingMissingImages_ = false;
+        voicePanel_->showTextResult(QString("已完成 %1 张图片的描述。").arg(missingAltImages_.size()));
+        statusBar()->showMessage("页面图片描述完成", 5000);
+        return;
+    }
+
+    const BrowserWidget::MissingAltImage image = missingAltImages_.at(missingAltIndex_);
+    const int displayIndex = missingAltIndex_ + 1;
+    const int total = missingAltImages_.size();
+    const QString progress = QString("正在分析第 %1/%2 张图片...").arg(displayIndex).arg(total);
+    voicePanel_->showBusy(progress);
+    statusBar()->showMessage(progress, 0);
+
+    rustBridge_->AnalyzeImageAsync(image.src.toStdString(),
+        [this, image, displayIndex, total](const std::string &result, bool success) {
+            QMetaObject::invokeMethod(this, [this, image, displayIndex, total, result, success]() {
+                if (success) {
+                    const QJsonDocument doc =
+                        QJsonDocument::fromJson(QByteArray::fromStdString(result));
+                    const QString description = doc.object().value("result").toString().trimmed();
+                    if (!description.isEmpty()) {
+                        browserWidget_->setImageAlt(image.index, "AI描述：" + description);
+                        statusBar()->showMessage(
+                            QString("第 %1/%2 张图片已写回描述").arg(displayIndex).arg(total), 3000);
+                    } else {
+                        qWarning() << "图片分析返回空描述:" << image.src;
+                    }
+                } else {
+                    qWarning() << "图片分析失败，跳过:" << image.src;
+                }
+
+                ++missingAltIndex_;
+                QTimer::singleShot(0, this, &MainWindow::analyzeNextMissingImage);
+            }, Qt::QueuedConnection);
+        });
 }
 
 void MainWindow::onUploadImageClicked() {

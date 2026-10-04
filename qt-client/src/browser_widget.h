@@ -17,6 +17,11 @@ class BrowserWidget : public QWebEngineView {
     Q_OBJECT
 
 public:
+    struct MissingAltImage {
+        int index;
+        QString src;
+    };
+
     explicit BrowserWidget(QWidget *parent = nullptr);
     ~BrowserWidget();
 
@@ -34,6 +39,12 @@ public:
 
     // 异步获取页面中所有图片的 URL
     void requestImageUrls(std::function<void(const QStringList&)> callback);
+
+    // 异步获取没有 alt 属性的图片及其 document.images 索引
+    void requestImagesWithoutAlt(std::function<void(const QList<MissingAltImage>&)> callback);
+
+    // 将描述写回指定图片的 alt 属性
+    void setImageAlt(int index, const QString &alt);
 
     // 让用户在页面中点击一张图片，回调返回其 data URL（取消时返回空字符串）
     void pickImage(std::function<void(const QString&)> callback);

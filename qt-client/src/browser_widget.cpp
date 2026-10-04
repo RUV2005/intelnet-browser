@@ -5,6 +5,7 @@
 #include <QTimer>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QVariant>
 
 namespace IntelNet {
@@ -251,6 +252,56 @@ void BrowserWidget::requestImageUrls(std::function<void(const QStringList&)> cal
             callback(urls);
         }
     });
+}
+
+void BrowserWidget::requestImagesWithoutAlt(
+    std::function<void(const QList<MissingAltImage>&)> callback) {
+    static const char *kScript = R"JS(
+(function () {
+  var out = [];
+  var imgs = document.images;
+  for (var i = 0; i < imgs.length; i++) {
+    if (imgs[i].hasAttribute('alt')) continue;
+    var w = imgs[i].naturalWidth || 0;
+    if (w > 0 && w < 48) continue;
+    var src = imgs[i].currentSrc || imgs[i].src || '';
+    if (src) out.push({idx: i, src: src});
+  }
+  return JSON.stringify(out);
+})();
+)JS";
+
+    page()->runJavaScript(QString::fromUtf8(kScript),
+        [callback](const QVariant &v) {
+            QList<MissingAltImage> images;
+            const QJsonDocument doc = QJsonDocument::fromJson(v.toString().toUtf8());
+            if (doc.isArray()) {
+                for (const QJsonValue &value : doc.array()) {
+                    if (!value.isObject()) continue;
+                    const QJsonObject object = value.toObject();
+                    const int index = object.value("idx").toInt(-1);
+                    const QString src = object.value("src").toString();
+                    if (index < 0 || src.isEmpty()) continue;
+                    images.append({index, src});
+                }
+            }
+            if (callback) callback(images);
+        });
+}
+
+void BrowserWidget::setImageAlt(int index, const QString &alt) {
+    if (index < 0) return;
+
+    QJsonArray values;
+    values.append(alt);
+    const QString jsonArray = QString::fromUtf8(
+        QJsonDocument(values).toJson(QJsonDocument::Compact));
+    const QString jsonLiteral = jsonArray.mid(1, jsonArray.size() - 2);
+    const QString script = QString(
+        "(function(){var img=document.images[%1];if(img)img.alt=%2;})();")
+        .arg(index)
+        .arg(jsonLiteral);
+    page()->runJavaScript(script);
 }
 
 void BrowserWidget::pickImage(std::function<void(const QString&)> callback) {
