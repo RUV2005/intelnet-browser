@@ -77,9 +77,111 @@ static const char *kPickScript = R"JS(
 })();
 )JS";
 
+// 监测页面内弹窗并标出可用的关闭按钮。
+static const char *kPopupObserverScript = R"JS(
+(function () {
+  if (window.__intelnetPopupCleanup) window.__intelnetPopupCleanup();
+  window.__INTELNET_POPUP_EVENT__ = '';
+
+  var seen = new WeakSet();
+  var style = document.getElementById('__intelnet_popup_style__');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = '__intelnet_popup_style__';
+    style.textContent = '@keyframes intelnetPopupPulse{50%{outline-color:#ff0000;box-shadow:0 0 0 6px rgba(255,0,0,.3)}}' +
+      '.__intelnet_popup_close__{outline:3px solid #ff0000 !important;outline-offset:2px !important;' +
+      'box-shadow:0 0 0 3px rgba(255,0,0,.45) !important;animation:intelnetPopupPulse 1s ease-in-out infinite !important;}';
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function isPopup(el) {
+    if (!el || el.nodeType !== 1) return false;
+    var css = getComputedStyle(el);
+    var rect = el.getBoundingClientRect();
+    var z = parseInt(css.zIndex, 10);
+    return css.position === 'fixed' && rect.width > innerWidth * 0.5 &&
+      rect.height > innerHeight * 0.5 && !isNaN(z) && z >= 1000;
+  }
+
+  function visible(el) {
+    var rect = el.getBoundingClientRect();
+    var css = getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && css.visibility !== 'hidden' &&
+      css.display !== 'none';
+  }
+
+  function findCloseButton(popup) {
+    var candidates = popup.querySelectorAll('button,[role="button"],[aria-label]');
+    var i;
+    for (i = 0; i < candidates.length; i++) {
+      var label = (candidates[i].getAttribute('aria-label') || '').toLowerCase();
+      if (visible(candidates[i]) && (label.indexOf('关闭') >= 0 || label.indexOf('close') >= 0)) {
+        return candidates[i];
+      }
+    }
+
+    candidates = popup.querySelectorAll('button,[role="button"],a,span,div');
+    for (i = 0; i < candidates.length; i++) {
+      var text = (candidates[i].textContent || '').trim();
+      if (visible(candidates[i]) && (text === '×' || text === '✕' || text === '关闭')) {
+        return candidates[i];
+      }
+    }
+
+    candidates = popup.querySelectorAll('button,[role="button"]');
+    var popupRect = popup.getBoundingClientRect();
+    for (i = 0; i < candidates.length; i++) {
+      var rect = candidates[i].getBoundingClientRect();
+      if (visible(candidates[i]) && rect.left >= popupRect.left + popupRect.width * 0.85 &&
+          rect.top <= popupRect.top + popupRect.height * 0.15) {
+        return candidates[i];
+      }
+    }
+    return null;
+  }
+
+  function inspect(popup) {
+    if (!isPopup(popup) || seen.has(popup)) return;
+    var closeButton = findCloseButton(popup);
+    if (!closeButton) return;
+    seen.add(popup);
+    closeButton.classList.add('__intelnet_popup_close__');
+    window.__INTELNET_POPUP_EVENT__ = 'detected';
+  }
+
+  function scan(root) {
+    if (!root || root.nodeType !== 1) return;
+    inspect(root);
+    var descendants = root.querySelectorAll('*');
+    for (var i = 0; i < descendants.length; i++) inspect(descendants[i]);
+    var parent = root.parentElement;
+    while (parent) {
+      inspect(parent);
+      parent = parent.parentElement;
+    }
+  }
+
+  scan(document.body || document.documentElement);
+  var observer = new MutationObserver(function (mutations) {
+    mutations.forEach(function (mutation) {
+      for (var i = 0; i < mutation.addedNodes.length; i++) scan(mutation.addedNodes[i]);
+    });
+  });
+  observer.observe(document.documentElement, {childList: true, subtree: true});
+  window.__intelnetPopupCleanup = function () {
+    observer.disconnect();
+    var marked = document.querySelectorAll('.__intelnet_popup_close__');
+    for (var i = 0; i < marked.length; i++) marked[i].classList.remove('__intelnet_popup_close__');
+    if (style.parentNode) style.parentNode.removeChild(style);
+    window.__intelnetPopupCleanup = null;
+  };
+})();
+)JS";
+
 BrowserWidget::BrowserWidget(QWidget *parent)
     : QWebEngineView(parent)
     , pickTimer_(new QTimer(this))
+    , popupTimer_(new QTimer(this))
     , pickElapsedMs_(0)
 {
     setupPage();
@@ -88,6 +190,9 @@ BrowserWidget::BrowserWidget(QWidget *parent)
     connect(this, &QWebEngineView::urlChanged, this, &BrowserWidget::urlChanged);
     connect(this, &QWebEngineView::loadFinished, this, &BrowserWidget::loadFinished);
     connect(this, &QWebEngineView::loadProgress, this, &BrowserWidget::loadProgress);
+    connect(this, &QWebEngineView::loadFinished, this, [this](bool ok) {
+        if (ok) installPopupObserver();
+    });
 
     pickTimer_->setInterval(300);
     connect(pickTimer_, &QTimer::timeout, this, [this]() {
@@ -110,6 +215,16 @@ BrowserWidget::BrowserWidget(QWidget *parent)
                 cb(value == "__INTELNET_CANCEL__" ? QString() : value);
             }
         });
+    });
+
+    popupTimer_->setInterval(250);
+    connect(popupTimer_, &QTimer::timeout, this, [this]() {
+        page()->runJavaScript("window.__INTELNET_POPUP_EVENT__ || ''",
+            [this](const QVariant &v) {
+                if (v.toString().isEmpty()) return;
+                page()->runJavaScript("window.__INTELNET_POPUP_EVENT__ = '';");
+                emit popupCloseButtonDetected();
+            });
     });
 
     // 加载默认主页
@@ -141,6 +256,11 @@ void BrowserWidget::setupPage() {
     // 无障碍支持
     settings->setAttribute(QWebEngineSettings::FocusOnNavigationEnabled, true);
     settings->setAttribute(QWebEngineSettings::AllowRunningInsecureContent, false);
+}
+
+void BrowserWidget::installPopupObserver() {
+    page()->runJavaScript(QString::fromUtf8(kPopupObserverScript));
+    popupTimer_->start();
 }
 
 void BrowserWidget::load(const QUrl &url) {

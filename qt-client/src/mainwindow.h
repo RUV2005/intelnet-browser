@@ -40,6 +40,7 @@ private slots:
     void onRefreshButtonClicked();
     void onUrlChanged(const QUrl &url);
     void onLoadFinished(bool ok);
+    void onPopupCloseButtonDetected();
 
     // 语音助手
     void onVoiceButtonClicked();

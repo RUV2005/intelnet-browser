@@ -167,6 +167,8 @@ void MainWindow::setupConnections() {
     // 浏览器事件
     connect(browserWidget_, &BrowserWidget::urlChanged, this, &MainWindow::onUrlChanged);
     connect(browserWidget_, &BrowserWidget::loadFinished, this, &MainWindow::onLoadFinished);
+    connect(browserWidget_, &BrowserWidget::popupCloseButtonDetected,
+            this, &MainWindow::onPopupCloseButtonDetected);
 
     // 语音助手
     connect(voiceButton_, &QPushButton::clicked, this, &MainWindow::onVoiceButtonClicked);
@@ -232,6 +234,12 @@ void MainWindow::onLoadFinished(bool ok) {
     } else {
         statusBar()->showMessage("页面加载失败", 3000);
     }
+}
+
+void MainWindow::onPopupCloseButtonDetected() {
+    const QString message = "检测到弹窗，关闭按钮已在右上角标出";
+    statusBar()->showMessage(message, 8000);
+    if (rustBridge_) rustBridge_->Speak(message.toStdString());
 }
 
 // ===== 语音助手槽函数 =====

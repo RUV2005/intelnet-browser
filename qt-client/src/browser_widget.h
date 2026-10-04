@@ -56,12 +56,15 @@ signals:
     void urlChanged(const QUrl &url);
     void loadFinished(bool ok);
     void loadProgress(int progress);
+    void popupCloseButtonDetected();
 
 private:
     void setupPage();
     void injectPickScript();
+    void installPopupObserver();
 
     QTimer *pickTimer_;
+    QTimer *popupTimer_;
     std::function<void(const QString&)> pickCallback_;
     int pickElapsedMs_;
 };
