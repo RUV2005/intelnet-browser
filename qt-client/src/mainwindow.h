@@ -41,6 +41,9 @@ private slots:
     void onUrlChanged(const QUrl &url);
     void onLoadFinished(bool ok);
     void onPopupCloseButtonDetected();
+    void onRedirectChainBlocked(const QUrl &url);
+    void onWarningActionRequested(const QString &action, const QUrl &url);
+    void onRepeatedAlertBlocked();
 
     // 语音助手
     void onVoiceButtonClicked();
@@ -55,6 +58,7 @@ private:
     void setupConnections();
     void initializeRustCore();
     void showVoicePanel();
+    void showRedirectWarning(const QUrl &url);
     void analyzeNextMissingImage();
 
     // UI 组件

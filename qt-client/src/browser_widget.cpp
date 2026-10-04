@@ -1,5 +1,6 @@
 // 浏览器组件实现
 #include "browser_widget.h"
+#include "browser_page.h"
 #include <QWebEngineProfile>
 #include <QWebEngineSettings>
 #include <QTimer>
@@ -202,11 +203,19 @@ BrowserWidget::BrowserWidget(QWidget *parent)
     , pickElapsedMs_(0)
 {
     setupPage();
+    auto *intelNetPage = new IntelNetPage(this);
+    setPage(intelNetPage);
 
     // 连接信号
     connect(this, &QWebEngineView::urlChanged, this, &BrowserWidget::urlChanged);
     connect(this, &QWebEngineView::loadFinished, this, &BrowserWidget::loadFinished);
     connect(this, &QWebEngineView::loadProgress, this, &BrowserWidget::loadProgress);
+    connect(intelNetPage, &IntelNetPage::redirectChainBlocked,
+            this, &BrowserWidget::redirectChainBlocked);
+    connect(intelNetPage, &IntelNetPage::warningActionRequested,
+            this, &BrowserWidget::warningActionRequested);
+    connect(intelNetPage, &IntelNetPage::repeatedAlertBlocked,
+            this, &BrowserWidget::repeatedAlertBlocked);
     connect(this, &QWebEngineView::loadFinished, this, [this](bool ok) {
         if (ok) installPopupObserver();
     });
@@ -294,6 +303,18 @@ void BrowserWidget::forward() {
 
 void BrowserWidget::reload() {
     QWebEngineView::reload();
+}
+
+void BrowserWidget::allowNavigationOnce(const QUrl &url) {
+    if (auto *intelNetPage = qobject_cast<IntelNetPage *>(page())) {
+        intelNetPage->allowNavigationOnce(url);
+    }
+}
+
+void BrowserWidget::resetNavigationHistory() {
+    if (auto *intelNetPage = qobject_cast<IntelNetPage *>(page())) {
+        intelNetPage->resetNavigationHistory();
+    }
 }
 
 void BrowserWidget::requestPageText(std::function<void(const QString&)> callback) {

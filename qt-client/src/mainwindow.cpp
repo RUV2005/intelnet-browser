@@ -10,6 +10,7 @@
 #include <QByteArray>
 #include <QDebug>
 #include <QTimer>
+#include <QUrlQuery>
 
 namespace IntelNet {
 
@@ -169,6 +170,12 @@ void MainWindow::setupConnections() {
     connect(browserWidget_, &BrowserWidget::loadFinished, this, &MainWindow::onLoadFinished);
     connect(browserWidget_, &BrowserWidget::popupCloseButtonDetected,
             this, &MainWindow::onPopupCloseButtonDetected);
+    connect(browserWidget_, &BrowserWidget::redirectChainBlocked,
+            this, &MainWindow::onRedirectChainBlocked);
+    connect(browserWidget_, &BrowserWidget::warningActionRequested,
+            this, &MainWindow::onWarningActionRequested);
+    connect(browserWidget_, &BrowserWidget::repeatedAlertBlocked,
+            this, &MainWindow::onRepeatedAlertBlocked);
 
     // 语音助手
     connect(voiceButton_, &QPushButton::clicked, this, &MainWindow::onVoiceButtonClicked);
@@ -207,19 +214,23 @@ void MainWindow::onGoButtonClicked() {
         }
     }
 
+    browserWidget_->resetNavigationHistory();
     browserWidget_->load(QUrl(url));
     statusBar()->showMessage("正在加载: " + url);
 }
 
 void MainWindow::onBackButtonClicked() {
+    browserWidget_->resetNavigationHistory();
     browserWidget_->back();
 }
 
 void MainWindow::onForwardButtonClicked() {
+    browserWidget_->resetNavigationHistory();
     browserWidget_->forward();
 }
 
 void MainWindow::onRefreshButtonClicked() {
+    browserWidget_->resetNavigationHistory();
     browserWidget_->reload();
     statusBar()->showMessage("刷新页面");
 }
@@ -239,6 +250,56 @@ void MainWindow::onLoadFinished(bool ok) {
 void MainWindow::onPopupCloseButtonDetected() {
     const QString message = "检测到弹窗，关闭按钮已在右上角标出";
     statusBar()->showMessage(message, 8000);
+    if (rustBridge_) rustBridge_->Speak(message.toStdString());
+}
+
+void MainWindow::showRedirectWarning(const QUrl &url) {
+    QUrl backAction("intelnet://back");
+    QUrl continueAction("intelnet://continue");
+    QUrlQuery query;
+    query.addQueryItem("url", url.toString());
+    continueAction.setQuery(query);
+
+    const QString escapedUrl = url.toString().toHtmlEscaped();
+    const QString html = QStringLiteral(R"HTML(
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>已拦截可疑跳转</title>
+<style>
+body{margin:0;background:#08090c;color:#f7f7f8;font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh}
+main{width:min(680px,calc(100% - 48px));padding:42px;border:1px solid #3b3d4a;border-radius:20px;background:#11131a;box-shadow:0 20px 60px #0008}
+h1{font-size:30px;margin:0 0 16px;color:#ff8b8b}p{line-height:1.7;color:#c6c7d0}code{display:block;word-break:break-all;padding:14px;border-radius:8px;background:#08090c;color:#b7f3ff}
+.actions{display:flex;gap:12px;margin-top:28px}a{padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600}a:first-child{background:#7566ff;color:white}a:last-child{border:1px solid #555866;color:#f7f7f8}
+</style></head><body><main>
+<h1>检测到可疑连环跳转，已拦截</h1>
+<p>页面在短时间内连续跳转到多个不同网站。为保护你的安全，浏览器已暂停这次跳转。</p>
+<p>目标地址：</p><code>%1</code>
+<div class="actions"><a href="%2">返回上一页</a><a href="%3">仍然继续</a></div>
+</main></body></html>
+)HTML").arg(escapedUrl,
+              QString::fromLatin1(backAction.toEncoded()),
+              QString::fromLatin1(continueAction.toEncoded()));
+    browserWidget_->setHtml(html, QUrl("https://intelnet-warning.local/"));
+}
+
+void MainWindow::onRedirectChainBlocked(const QUrl &url) {
+    const QString message = "检测到可疑连环跳转，已拦截";
+    showRedirectWarning(url);
+    statusBar()->showMessage(message, 8000);
+    if (rustBridge_) rustBridge_->Speak(message.toStdString());
+}
+
+void MainWindow::onWarningActionRequested(const QString &action, const QUrl &url) {
+    if (action == "back") {
+        browserWidget_->back();
+    } else if (action == "continue" && url.isValid() && !url.isEmpty()) {
+        browserWidget_->allowNavigationOnce(url);
+        browserWidget_->load(url);
+    }
+}
+
+void MainWindow::onRepeatedAlertBlocked() {
+    const QString message = "已屏蔽重复弹窗";
+    statusBar()->showMessage(message, 5000);
     if (rustBridge_) rustBridge_->Speak(message.toStdString());
 }
 

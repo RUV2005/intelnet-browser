@@ -33,6 +33,7 @@ set(SOURCES
     src/main.cpp
     src/mainwindow.cpp
     src/browser_widget.cpp
+    src/browser_page.cpp
     src/voice_panel.cpp
     src/rust_bridge.cpp
     src/theme.cpp
@@ -41,6 +42,7 @@ set(SOURCES
 set(HEADERS
     src/mainwindow.h
     src/browser_widget.h
+    src/browser_page.h
     src/voice_panel.h
     src/rust_bridge.h
     src/theme.h

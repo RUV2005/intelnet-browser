@@ -30,6 +30,8 @@ public:
     void back();
     void forward();
     void reload();
+    void allowNavigationOnce(const QUrl &url);
+    void resetNavigationHistory();
 
     // 异步获取当前页面可见文本
     void requestPageText(std::function<void(const QString&)> callback);
@@ -57,6 +59,9 @@ signals:
     void loadFinished(bool ok);
     void loadProgress(int progress);
     void popupCloseButtonDetected();
+    void redirectChainBlocked(const QUrl &url);
+    void warningActionRequested(const QString &action, const QUrl &url);
+    void repeatedAlertBlocked();
 
 private:
     void setupPage();
