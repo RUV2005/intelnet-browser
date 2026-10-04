@@ -110,7 +110,25 @@ static const char *kPopupObserverScript = R"JS(
       css.display !== 'none';
   }
 
+  function findDialogBox(popup) {
+    var rect = popup.getBoundingClientRect();
+    var full = rect.width >= innerWidth * 0.95 && rect.height >= innerHeight * 0.95;
+    if (!full) return popup;
+    var best = null, bestArea = 0;
+    var els = popup.querySelectorAll('*');
+    for (var i = 0; i < els.length; i++) {
+      var r = els[i].getBoundingClientRect();
+      if (r.width < 80 || r.height < 60) continue;
+      if (r.width >= innerWidth * 0.95 && r.height >= innerHeight * 0.95) continue;
+      var area = r.width * r.height;
+      if (area > bestArea) { bestArea = area; best = els[i]; }
+    }
+    return best || popup;
+  }
+
   function findCloseButton(popup) {
+    var box = findDialogBox(popup);
+    var boxRect = box.getBoundingClientRect();
     var candidates = popup.querySelectorAll('button,[role="button"],[aria-label]');
     var i;
     for (i = 0; i < candidates.length; i++) {
@@ -129,11 +147,10 @@ static const char *kPopupObserverScript = R"JS(
     }
 
     candidates = popup.querySelectorAll('button,[role="button"]');
-    var popupRect = popup.getBoundingClientRect();
     for (i = 0; i < candidates.length; i++) {
       var rect = candidates[i].getBoundingClientRect();
-      if (visible(candidates[i]) && rect.left >= popupRect.left + popupRect.width * 0.85 &&
-          rect.top <= popupRect.top + popupRect.height * 0.15) {
+      if (visible(candidates[i]) && rect.left >= boxRect.left + boxRect.width * 0.85 &&
+          rect.top <= boxRect.top + boxRect.height * 0.15) {
         return candidates[i];
       }
     }
