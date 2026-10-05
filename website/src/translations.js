@@ -20,8 +20,8 @@ const translations = {
         summary: {
           label: '页面摘要',
           title: '理解整个页面',
-          description: '输入任何网址或粘贴文本，AI 即时生成结构化摘要。',
-          placeholder: '粘贴文章内容或输入网址...',
+          description: '粘贴文章内容，AI 即时生成结构化摘要。',
+          placeholder: '粘贴文章内容...',
           demoContent: `量子计算取得重大突破
 
 研究团队今天宣布，他们成功开发出新型量子处理器，实现了127个量子比特的稳定运行。
@@ -36,7 +36,7 @@ const translations = {
         image: {
           label: '图像分析',
           title: '看见图像的含义',
-          description: '上传图片或粘贴图片链接，AI 描述视觉内容、识别物体。',
+          description: '上传图片或输入图片链接，AI 描述视觉内容、识别物体。',
           placeholder: '将图片拖到这里，或点击上传...'
         },
         voice: {

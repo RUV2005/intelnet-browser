@@ -103,7 +103,7 @@ impl PiperWorker {
             .or_else(|_| which::which("python3"))
             .context("找不到 python 或 python3")?;
 
-        let root = crate::ai::resources_root_for("models/piper/chaowen.onnx")?;
+        let root = crate::ai::resources_root_for("piper/vits-medium.onnx")?;
         let script_path = root.join("tts_synthesize.py");
 
         let mut cmd = Command::new(&python_exe);
@@ -209,8 +209,8 @@ pub struct PiperEngine {
 
 impl PiperEngine {
     pub fn new() -> Result<Self> {
-        let root = crate::ai::resources_root_for("models/piper/chaowen.onnx")?;
-        let model_path = root.join("models").join("piper").join("chaowen.onnx");
+        let root = crate::ai::resources_root_for("piper/vits-medium.onnx")?;
+        let model_path = root.join("piper").join("vits-medium.onnx");
 
         if !model_path.exists() {
             anyhow::bail!("找不到 Piper 模型: {:?}", model_path);
@@ -317,6 +317,7 @@ pub struct TtsPlayer {
     tx: Sender<Cmd>,
     epoch: Arc<AtomicU64>,
     next_seq: Arc<AtomicU64>, // 下一个句子的编号
+    ready: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl TtsPlayer {
@@ -325,8 +326,10 @@ impl TtsPlayer {
         let (tx, rx) = channel::<Cmd>();
         let epoch = Arc::new(AtomicU64::new(0));
         let next_seq = Arc::new(AtomicU64::new(0));
+        let ready = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let epoch_t = epoch.clone();
         let tx_clone = tx.clone(); // 克隆一份给子线程内部使用
+        let ready_t = ready.clone();
 
         std::thread::spawn(move || {
             let engine = match PiperEngine::new() {
@@ -352,6 +355,7 @@ impl TtsPlayer {
                     return;
                 }
             };
+            ready_t.store(true, Ordering::SeqCst);
 
             // 顺序播放缓冲区：存储已合成但还没到播放顺序的句子
             let mut pending: HashMap<u64, (Vec<i16>, u32)> = HashMap::new();
@@ -428,14 +432,18 @@ impl TtsPlayer {
             tx,
             epoch,
             next_seq,
+            ready,
         }
     }
 
     /// 排队朗读一句；播放队列会按顺序无缝播放
-    pub fn speak(&self, sentence: String) {
+    pub fn speak(&self, sentence: String) -> bool {
+        if !self.ready.load(Ordering::SeqCst) {
+            return false;
+        }
         let ep = self.epoch.load(Ordering::SeqCst);
         let seq = self.next_seq.fetch_add(1, Ordering::SeqCst);
-        let _ = self.tx.send(Cmd::Speak(ep, seq, sentence));
+        self.tx.send(Cmd::Speak(ep, seq, sentence)).is_ok()
     }
 
     /// 打断：使排队中的句子作废，并清空已在播放队列里的音频

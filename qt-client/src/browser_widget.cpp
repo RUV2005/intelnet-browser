@@ -3,6 +3,7 @@
 #include "browser_page.h"
 #include <QWebEngineProfile>
 #include <QWebEngineSettings>
+#include <QWebEngineHistory>
 #include <QTimer>
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -197,10 +198,113 @@ static const char *kPopupObserverScript = R"JS(
 })();
 )JS";
 
+static const char *kFormGuardScript = R"JS(
+(function () {
+  window.__INTELNET_FORM_EVENT__ = '';
+  window.__INTELNET_FORM_ACTIVE__ = false;
+  window.__INTELNET_FORM_CONFIRM__ = false;
+  window.__INTELNET_FORM_PENDING__ = null;
+
+  function labelFor(el) {
+    var labels = document.querySelectorAll('label');
+    for (var i = 0; i < labels.length; i++) {
+      if (el.id && labels[i].htmlFor === el.id) return labels[i].innerText.trim();
+    }
+    var wrapped = el.closest && el.closest('label');
+    if (wrapped) return wrapped.innerText.trim();
+    var ids = (el.getAttribute('aria-labelledby') || '').trim().split(/\s+/);
+    for (var j = 0; j < ids.length; j++) {
+      var node = ids[j] && document.getElementById(ids[j]);
+      if (node && node.innerText.trim()) return node.innerText.trim();
+    }
+    return (el.getAttribute('placeholder') || el.name || el.id || '未命名字段').trim();
+  }
+
+  function controls(root) {
+    return root.querySelectorAll('input,select,textarea');
+  }
+
+  function describeRoot(root) {
+    var fields = [], nodes = controls(root);
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i], type = (el.type || el.tagName).toLowerCase();
+      if (type === 'hidden' || el.disabled) continue;
+      var options = [];
+      if (type === 'select-one' || type === 'select-multiple') {
+        for (var j = 0; j < el.options.length; j++) options.push(el.options[j].text.trim());
+      }
+      fields.push({fieldIndex:i,type:type,label:labelFor(el),required:!!(el.required || el.getAttribute('aria-required') === 'true'),placeholder:el.placeholder || '',options:options});
+    }
+    return fields;
+  }
+
+  function valuePayload(root, formIndex, submitButton) {
+    var fields = [], nodes = controls(root);
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i], type = (el.type || el.tagName).toLowerCase();
+      if (type === 'hidden' || el.disabled) continue;
+      fields.push({fieldIndex:i,type:type,label:labelFor(el),required:!!(el.required || el.getAttribute('aria-required') === 'true'),value:type === 'password' ? '' : (el.value || '')});
+    }
+    return {formIndex:formIndex,fields:fields,submitButton:submitButton || null};
+  }
+
+  function intercept(root, formIndex, submitButton) {
+    if (root.__intelnetGuarded) return;
+    root.__intelnetGuarded = true;
+    root.addEventListener('submit', function (e) {
+      if (!window.__INTELNET_FORM_ACTIVE__) return;
+      if (window.__INTELNET_FORM_CONFIRM__) {
+        window.__INTELNET_FORM_CONFIRM__ = false;
+        window.__INTELNET_FORM_PENDING__ = null;
+        return;
+      }
+      e.preventDefault();
+      window.__INTELNET_FORM_PENDING__ = root;
+      window.__INTELNET_FORM_EVENT__ = JSON.stringify(valuePayload(root, formIndex, submitButton));
+    }, true);
+    if (submitButton) submitButton.addEventListener('click', function (e) {
+      if (!window.__INTELNET_FORM_ACTIVE__) return;
+      if (window.__INTELNET_FORM_CONFIRM__) {
+        window.__INTELNET_FORM_CONFIRM__ = false;
+        window.__INTELNET_FORM_PENDING__ = null;
+        return;
+      }
+      if (e.defaultPrevented) return;
+      e.preventDefault();
+      window.__INTELNET_FORM_PENDING__ = root;
+      window.__INTELNET_FORM_EVENT__ = JSON.stringify(valuePayload(root, formIndex, submitButton));
+    }, true);
+  }
+
+  function scan() {
+    var forms = document.querySelectorAll('form');
+    for (var i = 0; i < forms.length; i++) intercept(forms[i], i, null);
+    var submits = document.querySelectorAll('button[type="submit"],input[type="submit"]');
+    for (var j = 0; j < submits.length; j++) {
+      if (!submits[j].form) intercept(submits[j].parentElement, -1, submits[j]);
+    }
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !window.__INTELNET_FORM_PENDING__) return;
+    var root = window.__INTELNET_FORM_PENDING__;
+    window.__INTELNET_FORM_CONFIRM__ = true;
+    e.preventDefault();
+    if (root.requestSubmit) root.requestSubmit();
+    else if (root.__intelnetSubmitButton) root.__intelnetSubmitButton.click();
+  }, true);
+  scan();
+  if (window.__intelnetFormObserver) window.__intelnetFormObserver.disconnect();
+  window.__intelnetFormObserver = new MutationObserver(scan);
+  window.__intelnetFormObserver.observe(document.documentElement, {childList:true,subtree:true});
+})();
+)JS";
+
 BrowserWidget::BrowserWidget(QWidget *parent)
     : QWebEngineView(parent)
     , pickTimer_(new QTimer(this))
     , popupTimer_(new QTimer(this))
+    , formTimer_(new QTimer(this))
     , pickElapsedMs_(0)
 {
     setupPage();
@@ -217,8 +321,13 @@ BrowserWidget::BrowserWidget(QWidget *parent)
             this, &BrowserWidget::warningActionRequested);
     connect(intelNetPage, &IntelNetPage::repeatedAlertBlocked,
             this, &BrowserWidget::repeatedAlertBlocked);
+    connect(intelNetPage, &IntelNetPage::openUrlRequested,
+            this, [this](const QUrl &url) { load(url); });
     connect(this, &QWebEngineView::loadFinished, this, [this](bool ok) {
-        if (ok) installPopupObserver();
+        if (ok) {
+            installPopupObserver();
+            installFormGuards();
+        }
     });
 
     pickTimer_->setInterval(300);
@@ -251,6 +360,17 @@ BrowserWidget::BrowserWidget(QWidget *parent)
                 if (v.toString().isEmpty()) return;
                 page()->runJavaScript("window.__INTELNET_POPUP_EVENT__ = '';");
                 emit popupCloseButtonDetected();
+            });
+    });
+
+    formTimer_->setInterval(250);
+    connect(formTimer_, &QTimer::timeout, this, [this]() {
+        page()->runJavaScript("window.__INTELNET_FORM_EVENT__ || ''",
+            [this](const QVariant &v) {
+                const QString event = v.toString();
+                if (event.isEmpty()) return;
+                page()->runJavaScript("window.__INTELNET_FORM_EVENT__ = '';");
+                emit formSubmitIntercepted(event);
             });
     });
 
@@ -290,16 +410,25 @@ void BrowserWidget::installPopupObserver() {
     popupTimer_->start();
 }
 
+void BrowserWidget::installFormGuards() {
+    page()->runJavaScript(QString::fromUtf8(kFormGuardScript));
+    formTimer_->start();
+}
+
 void BrowserWidget::load(const QUrl &url) {
     QWebEngineView::load(url);
 }
 
 void BrowserWidget::back() {
-    QWebEngineView::back();
+    if (page()->history()->canGoBack()) {
+        page()->history()->back();
+    }
 }
 
 void BrowserWidget::forward() {
-    QWebEngineView::forward();
+    if (page()->history()->canGoForward()) {
+        page()->history()->forward();
+    }
 }
 
 void BrowserWidget::reload() {
@@ -386,6 +515,67 @@ void BrowserWidget::requestPageSource(std::function<void(const QString&)> callba
             callback(v.toString());
         }
     });
+}
+
+void BrowserWidget::requestFormStructure(std::function<void(const QString&)> callback) {
+    static const char *kScript = R"JS(
+(function () {
+  window.__INTELNET_FORM_ACTIVE__ = true;
+  function labelFor(el) {
+    var labels = document.querySelectorAll('label');
+    for (var i = 0; i < labels.length; i++) {
+      if (el.id && labels[i].htmlFor === el.id) return labels[i].innerText.trim();
+    }
+    var wrapped = el.closest && el.closest('label');
+    if (wrapped) return wrapped.innerText.trim();
+    var ids = (el.getAttribute('aria-labelledby') || '').trim().split(/\s+/);
+    for (var j = 0; j < ids.length; j++) {
+      var node = ids[j] && document.getElementById(ids[j]);
+      if (node && node.innerText.trim()) return node.innerText.trim();
+    }
+    return (el.getAttribute('placeholder') || el.name || el.id || '未命名字段').trim();
+  }
+  function read(root) {
+    var fields = [], nodes = root.querySelectorAll('input,select,textarea');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i], type = (el.type || el.tagName).toLowerCase();
+      if (type === 'hidden' || el.disabled) continue;
+      var options = [];
+      if (type === 'select-one' || type === 'select-multiple') {
+        for (var j = 0; j < el.options.length; j++) options.push(el.options[j].text.trim());
+      }
+      fields.push({type:type,label:labelFor(el),required:!!(el.required || el.getAttribute('aria-required') === 'true'),placeholder:el.placeholder || '',options:options});
+    }
+    return fields;
+  }
+  var forms = document.querySelectorAll('form'), out = [];
+  for (var i = 0; i < forms.length; i++) out.push({formIndex:i,fields:read(forms[i])});
+  if (!out.length) {
+    var submit = document.querySelector('button[type="submit"],input[type="submit"]');
+    if (submit && submit.parentElement) out.push({formIndex:-1,fields:read(submit.parentElement)});
+  }
+  return JSON.stringify(out);
+})();
+)JS";
+    page()->runJavaScript(QString::fromUtf8(kScript), [callback](const QVariant &v) {
+        if (callback) callback(v.toString());
+    });
+}
+
+void BrowserWidget::armFormConfirmation() {
+    page()->runJavaScript("window.__INTELNET_FORM_CONFIRM__ = false;");
+}
+
+void BrowserWidget::cancelFormConfirmation() {
+    page()->runJavaScript("window.__INTELNET_FORM_PENDING__ = null;window.__INTELNET_FORM_CONFIRM__ = false;");
+}
+
+void BrowserWidget::focusFormField(int formIndex, int fieldIndex) {
+    const QString script = QString(
+        "(function(){var fs=document.querySelectorAll('form');var r=%1>=0&&fs[%1]?fs[%1]:document;"
+        "var c=r.querySelectorAll('input,select,textarea');if(c[%2])c[%2].focus();})();")
+        .arg(formIndex).arg(fieldIndex);
+    page()->runJavaScript(script);
 }
 
 void BrowserWidget::requestHeadingOutline(
@@ -578,20 +768,35 @@ void BrowserWidget::requestCaptchaCandidate(
     });
 }
 
-void BrowserWidget::playAudioCaptcha() {
+void BrowserWidget::playAudioCaptcha(std::function<void(bool)> callback) {
     page()->runJavaScript(R"JS(
 (function () {
+  window.__INTELNET_AUDIO_RESULT__ = 'pending';
+  var found = false;
   var nodes = document.querySelectorAll('button,a,[role="button"]');
   for (var i = 0; i < nodes.length; i++) {
     var text = (nodes[i].innerText || nodes[i].getAttribute('aria-label') || '').trim();
-    if (/语音验证码|音频验证码|听语音/.test(text)) { nodes[i].click(); break; }
+    if (/语音验证码|音频验证码|听语音/.test(text)) { nodes[i].click(); found = true; break; }
   }
   setTimeout(function () {
     var audio = document.querySelector('audio');
-    if (audio) { audio.currentTime = 0; audio.play().catch(function () {}); }
+    if (!audio) { window.__INTELNET_AUDIO_RESULT__ = found ? 'notfound' : 'notfound'; return; }
+    audio.currentTime = 0;
+    var promise = audio.play();
+    if (promise && promise.then) promise.then(function () {
+      window.__INTELNET_AUDIO_RESULT__ = 'playing';
+    }).catch(function () { window.__INTELNET_AUDIO_RESULT__ = 'blocked'; });
+    else window.__INTELNET_AUDIO_RESULT__ = 'playing';
   }, 500);
 })();
-)JS");
+)JS", [this, callback] (const QVariant &) {
+        QTimer::singleShot(900, this, [this, callback]() {
+            page()->runJavaScript("window.__INTELNET_AUDIO_RESULT__ || 'notfound'",
+                [callback](const QVariant &v) {
+                    if (callback) callback(v.toString() == "playing");
+                });
+        });
+    });
 }
 
 void BrowserWidget::requestImageUrls(std::function<void(const QStringList&)> callback) {
@@ -630,7 +835,10 @@ void BrowserWidget::requestImagesWithoutAlt(
     var w = imgs[i].naturalWidth || 0;
     if (w > 0 && w < 48) continue;
     var src = imgs[i].currentSrc || imgs[i].src || '';
-    if (src) out.push({idx: i, src: src});
+    if (src) {
+      if (!imgs[i].id) imgs[i].id = '__intelnet_alt_' + i;
+      out.push({idx: i, id: imgs[i].id, src: src});
+    }
   }
   return JSON.stringify(out);
 })();
@@ -645,9 +853,10 @@ void BrowserWidget::requestImagesWithoutAlt(
                     if (!value.isObject()) continue;
                     const QJsonObject object = value.toObject();
                     const int index = object.value("idx").toInt(-1);
+                    const QString id = object.value("id").toString();
                     const QString src = object.value("src").toString();
-                    if (index < 0 || src.isEmpty()) continue;
-                    images.append({index, src});
+                    if (index < 0 || id.isEmpty() || src.isEmpty()) continue;
+                    images.append({index, id, src});
                 }
             }
             if (callback) callback(images);
@@ -667,6 +876,17 @@ void BrowserWidget::setImageAlt(int index, const QString &alt) {
         .arg(index)
         .arg(jsonLiteral);
     page()->runJavaScript(script);
+}
+
+void BrowserWidget::setImageAltById(const QString &id, const QString &alt) {
+    QJsonArray values;
+    values.append(id);
+    values.append(alt);
+    const QString json = QString::fromUtf8(
+        QJsonDocument(values).toJson(QJsonDocument::Compact));
+    page()->runJavaScript(QString(
+        "(function(){var a=%1;var e=document.getElementById(a[0]);"
+        "if(e)e.alt=a[1];})();").arg(json));
 }
 
 void BrowserWidget::pickImage(std::function<void(const QString&)> callback) {

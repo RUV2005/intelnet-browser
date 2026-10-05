@@ -4,11 +4,24 @@
 #include <thread>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <chrono>
 
 namespace IntelNet {
 
+namespace {
+template <typename Task>
+void startAsync(const std::shared_ptr<RustBridge::AsyncState> &state, Task task) {
+    if (state->stopping.load()) return;
+    state->active.fetch_add(1);
+    std::thread([state, task = std::move(task)]() mutable {
+        task();
+        state->active.fetch_sub(1);
+    }).detach();
+}
+}
+
 RustBridge::RustBridge()
-    : initialized_(false), model_initialized_(false) {
+    : initialized_(false), model_initialized_(false), asyncState_(std::make_shared<AsyncState>()) {
 }
 
 RustBridge::~RustBridge() {
@@ -92,8 +105,9 @@ void RustBridge::AnalyzeImageAsync(
     std::function<void(const std::string&, bool)> callback) {
 
     // 在新线程中执行，避免阻塞 UI
-    std::thread([this, image_data, callback]() {
-        if (!initialized_) {
+    const bool initialized = initialized_;
+    startAsync(asyncState_, [image_data, callback, initialized]() {
+        if (!initialized) {
             callback(R"({"success": false, "error": "核心库未初始化"})", false);
             return;
         }
@@ -104,14 +118,15 @@ void RustBridge::AnalyzeImageAsync(
             : R"({"success": false, "error": "分析失败"})";
         if (raw) intelnet_free_string(raw);
         callback(result, jsonSuccess(result));
-    }).detach();
+    });
 }
 
 void RustBridge::DescribeButtonAsync(
     const std::string& image_data,
     std::function<void(const std::string&, bool)> callback) {
-    std::thread([this, image_data, callback]() {
-        if (!initialized_) {
+    const bool initialized = initialized_;
+    startAsync(asyncState_, [image_data, callback, initialized]() {
+        if (!initialized) {
             callback(R"({"success": false, "error": "核心库未初始化"})", false);
             return;
         }
@@ -121,14 +136,15 @@ void RustBridge::DescribeButtonAsync(
             : R"({"success": false, "error": "分析失败"})";
         if (raw) intelnet_free_string(raw);
         callback(result, jsonSuccess(result));
-    }).detach();
+    });
 }
 
 void RustBridge::OcrCaptchaAsync(
     const std::string& image_data,
     std::function<void(const std::string&, bool)> callback) {
-    std::thread([this, image_data, callback]() {
-        if (!initialized_) {
+    const bool initialized = initialized_;
+    startAsync(asyncState_, [image_data, callback, initialized]() {
+        if (!initialized) {
             callback(R"({"success": false, "error": "核心库未初始化"})", false);
             return;
         }
@@ -138,7 +154,25 @@ void RustBridge::OcrCaptchaAsync(
             : R"({"success": false, "error": "OCR 分析失败"})";
         if (raw) intelnet_free_string(raw);
         callback(result, jsonSuccess(result));
-    }).detach();
+    });
+}
+
+void RustBridge::ExplainFormAsync(
+    const std::string& form_json,
+    std::function<void(const std::string&, bool)> callback) {
+    const bool initialized = initialized_;
+    startAsync(asyncState_, [form_json, callback, initialized]() {
+        if (!initialized) {
+            callback(R"({"success": false, "error": "核心库未初始化"})", false);
+            return;
+        }
+        char* raw = intelnet_explain_form(form_json.c_str(), 1);
+        std::string result = raw
+            ? std::string(raw)
+            : R"({"success": false, "error": "表单解释失败"})";
+        if (raw) intelnet_free_string(raw);
+        callback(result, jsonSuccess(result));
+    });
 }
 
 std::string RustBridge::SummarizeText(const std::string& text) {
@@ -165,10 +199,19 @@ void RustBridge::SummarizeTextAsync(
     std::function<void(const std::string&, bool)> callback) {
 
     // 在新线程中执行，避免阻塞 UI
-    std::thread([this, text, callback]() {
-        std::string result = SummarizeText(text);
+    const bool initialized = initialized_;
+    startAsync(asyncState_, [text, callback, initialized]() {
+        std::string result = initialized
+            ? ([&]() {
+                char *raw = intelnet_summarize_text(text.c_str());
+                std::string value = raw ? std::string(raw)
+                    : R"({"success": false, "error": "总结失败"})";
+                if (raw) intelnet_free_string(raw);
+                return value;
+            })()
+            : R"({"success": false, "error": "核心库未初始化"})";
         callback(result, jsonSuccess(result));
-    }).detach();
+    });
 }
 
 bool RustBridge::Speak(const std::string& text) {
@@ -191,6 +234,10 @@ void RustBridge::StopSpeaking() {
 
 void RustBridge::Shutdown() {
     if (initialized_) {
+        asyncState_->stopping.store(true);
+        while (asyncState_->active.load() > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
         std::cout << "清理 Rust 核心库..." << std::endl;
         intelnet_shutdown();
         initialized_ = false;

@@ -362,6 +362,7 @@ function InteractiveDemoSection() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [uploadedImage, setUploadedImage] = useState(null);
+  const [imageUrl, setImageUrl] = useState('');
 
   const sectionRef = useRef(null);
   const demoRef = useRef(null);
@@ -405,6 +406,7 @@ function InteractiveDemoSection() {
       setInputValue('');
       setResponse('');
       setUploadedImage(null);
+      setImageUrl('');
     }
   };
 
@@ -415,7 +417,7 @@ function InteractiveDemoSection() {
   };
 
   const handleSubmit = async () => {
-    if (!inputValue.trim() && !uploadedImage) return;
+    if (!inputValue.trim() && !uploadedImage && !imageUrl.trim()) return;
 
     setIsLoading(true);
     setResponse('');
@@ -437,7 +439,7 @@ function InteractiveDemoSection() {
         const response = await fetch(`${API_BASE}/analyze-image`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageData: uploadedImage })
+           body: JSON.stringify({ imageData: uploadedImage || imageUrl.trim() })
         });
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
@@ -508,6 +510,7 @@ function InteractiveDemoSection() {
     try {
       const compressedImage = await compressImage(file);
       setUploadedImage(compressedImage);
+      setImageUrl('');
       setInputValue('');
     } catch (error) {
       setUploadedImage(null);
@@ -563,11 +566,21 @@ function InteractiveDemoSection() {
         <div ref={demoRef} className="demo-playground">
           <div className="demo-input-area">
             {activeTab === 'image' ? (
-              <div
-                className="image-upload-area"
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-              >
+              <>
+                {!uploadedImage && (
+                  <input
+                    className="demo-image-url"
+                    type="url"
+                    placeholder="或输入图片 URL..."
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                  />
+                )}
+                <div
+                  className="image-upload-area"
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                >
                 {uploadedImage ? (
                   <div className="uploaded-image-preview">
                     <img src={uploadedImage} alt="Uploaded" />
@@ -593,7 +606,8 @@ function InteractiveDemoSection() {
                     </label>
                   </>
                 )}
-              </div>
+                </div>
+              </>
             ) : (
               <textarea
                 className="demo-textarea"
@@ -607,7 +621,7 @@ function InteractiveDemoSection() {
             <button
               className="demo-submit-btn"
               onClick={handleSubmit}
-              disabled={(!inputValue.trim() && !uploadedImage) || isLoading || isCompressing}
+               disabled={(!inputValue.trim() && !uploadedImage && !imageUrl.trim()) || isLoading || isCompressing}
             >
               {isCompressing ? t.demo.compressing : isLoading ? t.demo.analyzing : t.demo.analyze}
             </button>

@@ -55,6 +55,8 @@ private slots:
     void onUploadImageClicked();
     void onCaptchaRequested();
     void onAudioCaptchaRequested();
+    void onFormRequested();
+    void onFormSubmitIntercepted(const QString &payload);
 
 private:
     void setupUi();

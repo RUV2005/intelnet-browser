@@ -2,6 +2,7 @@
 
 #include <QDebug>
 #include <QUrlQuery>
+#include <QWebEngineHistory>
 
 namespace IntelNet {
 
@@ -9,6 +10,18 @@ namespace {
 constexpr qint64 kRedirectWindowMs = 10'000;
 constexpr qint64 kPopupWindowMs = 3'000;
 constexpr qint64 kAlertWindowMs = 10'000;
+}
+
+PopupCatcher::PopupCatcher(QWebEngineProfile *profile, QObject *parent)
+    : QWebEnginePage(profile, parent) {
+}
+
+bool PopupCatcher::acceptNavigationRequest(const QUrl &url, NavigationType type,
+                                           bool isMainFrame) {
+    Q_UNUSED(type);
+    if (!isMainFrame || url.isEmpty() || url == QUrl("about:blank")) return true;
+    emit urlRequested(url);
+    return false;
 }
 
 IntelNetPage::IntelNetPage(QObject *parent)
@@ -98,8 +111,15 @@ QWebEnginePage *IntelNetPage::createWindow(WebWindowType type) {
         return nullptr;
     }
 
-    // 当前客户端没有标签页容器，前两个请求在当前页面承载，保留 OAuth 等正常流程。
-    return this;
+    auto *catcher = new PopupCatcher(profile(), this);
+    connect(catcher, &PopupCatcher::urlRequested, this,
+            [this, catcher](const QUrl &url) {
+        if (url.isValid() && !url.isEmpty() && url != QUrl("about:blank")) {
+            emit openUrlRequested(url);
+        }
+        catcher->deleteLater();
+    });
+    return catcher;
 }
 
 void IntelNetPage::javaScriptAlert(const QUrl &securityOrigin, const QString &msg) {

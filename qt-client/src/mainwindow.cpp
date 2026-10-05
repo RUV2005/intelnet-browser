@@ -7,6 +7,7 @@
 #include <QStatusBar>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QByteArray>
 #include <QDebug>
 #include <QTimer>
@@ -14,6 +15,7 @@
 #include <QScrollArea>
 #include <QLabel>
 #include <QBuffer>
+#include <QWebEngineHistory>
 
 namespace IntelNet {
 
@@ -149,6 +151,7 @@ void MainWindow::setupToolbar() {
              "Ctrl+Shift+O：页面大纲\n"
              "Ctrl+Shift+C：识别验证码\n"
              "Ctrl+Shift+L：播放音频验证码\n"
+             "Ctrl+Shift+F：解释当前表单\n"
              "Alt+D：描述页面中无 alt 的图片\n"
             "Ctrl+Shift+U：上传本地图片");
     });
@@ -160,19 +163,37 @@ void MainWindow::setupToolbar() {
 
     // 快捷键
     QShortcut *voiceShortcut = new QShortcut(QKeySequence("Ctrl+Shift+V"), this);
+    voiceShortcut->setContext(Qt::ApplicationShortcut);
     connect(voiceShortcut, &QShortcut::activated, this, &MainWindow::onVoiceButtonClicked);
 
     QShortcut *describeImagesShortcut = new QShortcut(QKeySequence("Alt+D"), this);
+    describeImagesShortcut->setContext(Qt::ApplicationShortcut);
     connect(describeImagesShortcut, &QShortcut::activated,
             this, &MainWindow::onDescribeMissingImagesClicked);
 
     QShortcut *outlineShortcut = new QShortcut(QKeySequence("Ctrl+Shift+O"), this);
+    outlineShortcut->setContext(Qt::ApplicationShortcut);
     connect(outlineShortcut, &QShortcut::activated, this, &MainWindow::onOutlineRequested);
 
     QShortcut *captchaShortcut = new QShortcut(QKeySequence("Ctrl+Shift+C"), this);
+    captchaShortcut->setContext(Qt::ApplicationShortcut);
     connect(captchaShortcut, &QShortcut::activated, this, &MainWindow::onCaptchaRequested);
     QShortcut *audioCaptchaShortcut = new QShortcut(QKeySequence("Ctrl+Shift+L"), this);
+    audioCaptchaShortcut->setContext(Qt::ApplicationShortcut);
     connect(audioCaptchaShortcut, &QShortcut::activated, this, &MainWindow::onAudioCaptchaRequested);
+    QShortcut *formShortcut = new QShortcut(QKeySequence("Ctrl+Shift+F"), this);
+    formShortcut->setContext(Qt::ApplicationShortcut);
+    connect(formShortcut, &QShortcut::activated, this, &MainWindow::onFormRequested);
+
+    QShortcut *summaryShortcut = new QShortcut(QKeySequence("Ctrl+Shift+S"), this);
+    summaryShortcut->setContext(Qt::ApplicationShortcut);
+    connect(summaryShortcut, &QShortcut::activated, this, &MainWindow::onAnalyzePageClicked);
+    QShortcut *imageShortcut = new QShortcut(QKeySequence("Ctrl+Shift+A"), this);
+    imageShortcut->setContext(Qt::ApplicationShortcut);
+    connect(imageShortcut, &QShortcut::activated, this, &MainWindow::onAnalyzeImageClicked);
+    QShortcut *uploadShortcut = new QShortcut(QKeySequence("Ctrl+Shift+U"), this);
+    uploadShortcut->setContext(Qt::ApplicationShortcut);
+    connect(uploadShortcut, &QShortcut::activated, this, &MainWindow::onUploadImageClicked);
 }
 
 void MainWindow::setupConnections() {
@@ -186,6 +207,8 @@ void MainWindow::setupConnections() {
     // 浏览器事件
     connect(browserWidget_, &BrowserWidget::urlChanged, this, &MainWindow::onUrlChanged);
     connect(browserWidget_, &BrowserWidget::loadFinished, this, &MainWindow::onLoadFinished);
+    backAction_->setEnabled(true);
+    forwardAction_->setEnabled(true);
     connect(browserWidget_, &BrowserWidget::popupCloseButtonDetected,
             this, &MainWindow::onPopupCloseButtonDetected);
     connect(browserWidget_, &BrowserWidget::redirectChainBlocked,
@@ -202,6 +225,9 @@ void MainWindow::setupConnections() {
     connect(voicePanel_, &VoicePanel::uploadImageRequested, this, &MainWindow::onUploadImageClicked);
     connect(voicePanel_, &VoicePanel::captchaRequested, this, &MainWindow::onCaptchaRequested);
     connect(voicePanel_, &VoicePanel::audioCaptchaRequested, this, &MainWindow::onAudioCaptchaRequested);
+    connect(voicePanel_, &VoicePanel::formRequested, this, &MainWindow::onFormRequested);
+    connect(browserWidget_, &BrowserWidget::formSubmitIntercepted,
+            this, &MainWindow::onFormSubmitIntercepted);
 }
 
 void MainWindow::initializeRustCore() {
@@ -241,11 +267,19 @@ void MainWindow::onGoButtonClicked() {
 
 void MainWindow::onBackButtonClicked() {
     browserWidget_->resetNavigationHistory();
+    statusBar()->showMessage(QString("后退：历史 %1 项，当前位置 %2，可后退=%3")
+        .arg(browserWidget_->history()->count())
+        .arg(browserWidget_->history()->currentItemIndex())
+        .arg(browserWidget_->history()->canGoBack() ? "是" : "否"), 5000);
     browserWidget_->back();
 }
 
 void MainWindow::onForwardButtonClicked() {
     browserWidget_->resetNavigationHistory();
+    statusBar()->showMessage(QString("前进：历史 %1 项，当前位置 %2，可前进=%3")
+        .arg(browserWidget_->history()->count())
+        .arg(browserWidget_->history()->currentItemIndex())
+        .arg(browserWidget_->history()->canGoForward() ? "是" : "否"), 5000);
     browserWidget_->forward();
 }
 
@@ -260,6 +294,9 @@ void MainWindow::onUrlChanged(const QUrl &url) {
 }
 
 void MainWindow::onLoadFinished(bool ok) {
+    qDebug() << "load finished" << ok << browserWidget_->url()
+             << "history" << browserWidget_->history()->count()
+             << "index" << browserWidget_->history()->currentItemIndex();
     if (ok) {
         statusBar()->showMessage("页面加载完成", 3000);
     } else {
@@ -529,7 +566,7 @@ void MainWindow::analyzeNextMissingImage() {
                         QJsonDocument::fromJson(QByteArray::fromStdString(result));
                     const QString description = doc.object().value("result").toString().trimmed();
                     if (!description.isEmpty()) {
-                        browserWidget_->setImageAlt(image.index, "AI描述：" + description);
+                        browserWidget_->setImageAltById(image.id, "AI描述：" + description);
                         ++describedImages_;
                         statusBar()->showMessage(
                             QString("第 %1/%2 张图片已写回描述").arg(displayIndex).arg(total), 3000);
@@ -562,7 +599,7 @@ void MainWindow::requestUnnamedButtonsAfterImages() {
             unnamedButtons_ = unnamedButtons_.mid(0, maxButtonsPerRun);
             statusBar()->showMessage(
                 QString("发现 %1 个无语义按钮，本次最多处理 %2 个，剩余 %3 个跳过")
-                    .arg(buttons.size()).arg(maxButtonsPerRun).arg(skippedButtons_), 6000);
+                    .arg(static_cast<int>(buttons.size())).arg(maxButtonsPerRun).arg(skippedButtons_), 6000);
         }
         if (unnamedButtons_.isEmpty()) {
             analyzingMissingImages_ = false;
@@ -694,7 +731,91 @@ void MainWindow::onAudioCaptchaRequested() {
     showVoicePanel();
     voicePanel_->showBusy("正在切换并播放音频验证码...");
     statusBar()->showMessage("正在切换并播放音频验证码...", 5000);
-    browserWidget_->playAudioCaptcha();
+    browserWidget_->playAudioCaptcha([this](bool playing) {
+        if (playing) {
+            voicePanel_->showBusy("音频验证码播放中...");
+            statusBar()->showMessage("音频验证码播放中", 5000);
+        } else {
+            voicePanel_->showError("未找到音频验证码，或浏览器阻止了自动播放");
+            statusBar()->showMessage("未找到音频验证码，或浏览器阻止了自动播放", 8000);
+        }
+    });
+}
+
+void MainWindow::onFormRequested() {
+    showVoicePanel();
+    voicePanel_->showBusy("正在读取当前表单...");
+    statusBar()->showMessage("正在读取当前表单...", 3000);
+    browserWidget_->requestFormStructure([this](const QString &structure) {
+        if (structure.trimmed().isEmpty() || structure == "[]") {
+            voicePanel_->showTextResult("当前页面没有找到可解释的表单。");
+            statusBar()->showMessage("当前页面没有找到可解释的表单", 5000);
+            return;
+        }
+        voicePanel_->showBusy("正在解释表单...");
+        rustBridge_->ExplainFormAsync(structure.toStdString(),
+            [this](const std::string &result, bool success) {
+                QMetaObject::invokeMethod(this, [this, result, success]() {
+                    if (!success) {
+                        voicePanel_->showError("表单解释失败");
+                        statusBar()->showMessage("表单解释失败", 5000);
+                        return;
+                    }
+                    const QJsonDocument doc = QJsonDocument::fromJson(
+                        QByteArray::fromStdString(result));
+                    const QString text = doc.object().value("result").toString().trimmed();
+                    if (text.isEmpty()) {
+                        voicePanel_->showError("表单解释为空");
+                        return;
+                    }
+                    voicePanel_->showTextResult(text, false);
+                    statusBar()->showMessage("表单解释完成", 5000);
+                }, Qt::QueuedConnection);
+            });
+    });
+}
+
+void MainWindow::onFormSubmitIntercepted(const QString &payload) {
+    const QJsonDocument doc = QJsonDocument::fromJson(payload.toUtf8());
+    if (!doc.isObject()) return;
+    const QJsonObject object = doc.object();
+    const QJsonArray fields = object.value("fields").toArray();
+    QStringList missing;
+    int firstMissing = -1;
+    QStringList values;
+    for (const QJsonValue &value : fields) {
+        const QJsonObject field = value.toObject();
+        const QString label = field.value("label").toString().trimmed();
+        const QString type = field.value("type").toString();
+        const QString fieldValue = field.value("value").toString();
+        if (field.value("required").toBool() && fieldValue.trimmed().isEmpty()) {
+            missing << label;
+            if (firstMissing < 0) firstMissing = field.value("fieldIndex").toInt(-1);
+        }
+        if (type == "password") {
+            values << QString("%1已填写").arg(label);
+        } else if (!fieldValue.trimmed().isEmpty()) {
+            values << QString("%1%2").arg(label, fieldValue.trimmed());
+        }
+    }
+
+    if (!missing.isEmpty()) {
+        browserWidget_->cancelFormConfirmation();
+        const QString message = QString("还有 %1 项没填：%2")
+            .arg(static_cast<int>(missing.size()))
+            .arg(missing.join("、"));
+        voicePanel_->showTextResult(message);
+        statusBar()->showMessage(message, 8000);
+        if (firstMissing >= 0) {
+            browserWidget_->focusFormField(object.value("formIndex").toInt(-1), firstMissing);
+        }
+        return;
+    }
+
+    const QString message = QString("请确认，%1，按回车提交").arg(values.join("，"));
+    browserWidget_->armFormConfirmation();
+    voicePanel_->showTextResult(message);
+    statusBar()->showMessage("表单待确认，按回车提交", 8000);
 }
 
 } // namespace IntelNet

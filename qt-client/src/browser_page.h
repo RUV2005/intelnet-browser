@@ -9,6 +9,20 @@
 
 namespace IntelNet {
 
+class PopupCatcher : public QWebEnginePage {
+    Q_OBJECT
+
+public:
+    explicit PopupCatcher(QWebEngineProfile *profile, QObject *parent = nullptr);
+
+signals:
+    void urlRequested(const QUrl &url);
+
+protected:
+    bool acceptNavigationRequest(const QUrl &url, NavigationType type,
+                                 bool isMainFrame) override;
+};
+
 class IntelNetPage : public QWebEnginePage {
     Q_OBJECT
 
@@ -22,6 +36,7 @@ signals:
     void redirectChainBlocked(const QUrl &url);
     void warningActionRequested(const QString &action, const QUrl &url);
     void repeatedAlertBlocked();
+    void openUrlRequested(const QUrl &url);
 
 protected:
     bool acceptNavigationRequest(const QUrl &url, NavigationType type,

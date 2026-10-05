@@ -33,7 +33,7 @@ VoiceButton::VoiceButton(QWidget *parent)
 
     // 设置无障碍属性
     setAccessibleName(tr("语音输入"));
-    setAccessibleDescription(tr("按住或点击开始语音输入，说"帮助"查看命令列表"));
+    setAccessibleDescription(tr("按住或点击开始语音输入，说‘帮助’查看命令列表"));
 
     // 设置工具提示
     setToolTip(tr("语音输入\n按住: 短命令\n点击: 长对话\n快捷键: Ctrl+Space"));
@@ -58,6 +58,7 @@ void VoiceButton::setState(State state)
         break;
 
     case Listening:
+    {
         startPulseAnimation();
         pulseAnimation_->setStartValue(0.5);
         pulseAnimation_->setEndValue(1.0);
@@ -66,8 +67,10 @@ void VoiceButton::setState(State state)
         QAccessibleEvent event(this, QAccessible::StateChanged);
         QAccessible::updateAccessibility(&event);
         break;
+    }
 
     case Processing:
+    {
         startPulseAnimation();
         pulseAnimation_->setStartValue(0.3);
         pulseAnimation_->setEndValue(0.7);
@@ -75,6 +78,7 @@ void VoiceButton::setState(State state)
         QAccessibleEvent event2(this, QAccessible::StateChanged);
         QAccessible::updateAccessibility(&event2);
         break;
+    }
     }
 
     update();

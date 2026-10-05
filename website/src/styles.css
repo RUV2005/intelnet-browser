@@ -479,6 +479,22 @@ button {
   margin-bottom: 24px;
 }
 
+.demo-image-url {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  background: white;
+}
+
+.demo-image-url:focus {
+  outline: none;
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px rgba(117, 102, 255, 0.1);
+}
+
 .demo-textarea {
   width: 100%;
   min-height: 200px;
@@ -1269,6 +1285,15 @@ button {
 
 /* Responsive */
 @media (max-width: 850px) {
+  .demo-container {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+
+  .demo-info {
+    position: static;
+  }
+
   .header-content {
     padding: 16px 24px;
   }

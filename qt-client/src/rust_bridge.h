@@ -4,6 +4,8 @@
 
 #include <string>
 #include <functional>
+#include <memory>
+#include <atomic>
 
 // Rust C FFI 函数声明
 extern "C" {
@@ -13,6 +15,7 @@ extern "C" {
     char* intelnet_analyze_image_stream(const char* image_data, int speak);
     char* intelnet_describe_button_stream(const char* image_data);
     char* intelnet_ocr_captcha(const char* image_data, int speak);
+    char* intelnet_explain_form(const char* form_json, int speak);
     char* intelnet_summarize_text(const char* text);
     int intelnet_speak(const char* text);
     void intelnet_stop_speaking();
@@ -44,6 +47,8 @@ public:
                              std::function<void(const std::string&, bool)> callback);
     void OcrCaptchaAsync(const std::string& image_data,
                          std::function<void(const std::string&, bool)> callback);
+    void ExplainFormAsync(const std::string& form_json,
+                          std::function<void(const std::string&, bool)> callback);
 
     // 总结网页文本（同步）
     std::string SummarizeText(const std::string& text);
@@ -61,9 +66,16 @@ public:
     // 清理资源
     void Shutdown();
 
+public:
+    struct AsyncState {
+        std::atomic<bool> stopping{false};
+        std::atomic<int> active{0};
+    };
+
 private:
     bool initialized_;
     bool model_initialized_;
+    std::shared_ptr<AsyncState> asyncState_;
 };
 
 } // namespace IntelNet

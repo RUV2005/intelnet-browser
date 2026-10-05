@@ -32,6 +32,7 @@ VoicePanel::VoicePanel(QWidget *parent)
     , uploadImageBtn_(nullptr)
     , captchaBtn_(nullptr)
     , audioCaptchaBtn_(nullptr)
+    , formBtn_(nullptr)
     , closeBtn_(nullptr)
     , rustBridge_(nullptr)
     , isPlaying_(false)
@@ -128,6 +129,8 @@ void VoicePanel::setupUi() {
     contentLayout->addWidget(captchaBtn_);
     audioCaptchaBtn_ = createActionButton("mic", "播放音频验证码", "Ctrl+Shift+L", content);
     contentLayout->addWidget(audioCaptchaBtn_);
+    formBtn_ = createActionButton("doc", "解释当前表单", "Ctrl+Shift+F", content);
+    contentLayout->addWidget(formBtn_);
 
     contentLayout->addStretch();
 
@@ -145,6 +148,7 @@ void VoicePanel::setupUi() {
     connect(uploadImageBtn_, &QPushButton::clicked, this, &VoicePanel::onUploadImageClicked);
     connect(captchaBtn_, &QPushButton::clicked, this, &VoicePanel::captchaRequested);
     connect(audioCaptchaBtn_, &QPushButton::clicked, this, &VoicePanel::audioCaptchaRequested);
+    connect(formBtn_, &QPushButton::clicked, this, &VoicePanel::formRequested);
 }
 
 QWidget* VoicePanel::buildHeader() {

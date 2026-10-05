@@ -35,6 +35,7 @@ set(SOURCES
     src/browser_widget.cpp
     src/browser_page.cpp
     src/voice_panel.cpp
+    src/accessible_toolbar.cpp
     src/rust_bridge.cpp
     src/theme.cpp
 )
@@ -44,6 +45,7 @@ set(HEADERS
     src/browser_widget.h
     src/browser_page.h
     src/voice_panel.h
+    src/accessible_toolbar.h
     src/rust_bridge.h
     src/theme.h
 )

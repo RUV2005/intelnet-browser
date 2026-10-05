@@ -32,6 +32,8 @@ const OCR_PROMPT: &str = "只输出图片中的文字，不要解释。";
 const SUMMARY_PROMPT_PREFIX: &str =
     "以下是从网页中提取的结构化源码（包含 URL、标题、标题层级、正文、图片、链接等）。\
 请用简洁的中文总结这个页面的主要内容，突出主题和关键信息，不要逐条罗列，控制在 200 字以内：\n\n";
+const FORM_PROMPT_PREFIX: &str =
+    "解释这个表单是干什么的，逐个说明字段含义，标出必填项。请用简洁中文回答：\n\n";
 /// 页面摘要单次最多生成的 token 数。
 const SUMMARY_MAX_TOKENS: u32 = 320;
 /// 送入摘要模型的正文最大字符数（按上下文长度粗略裁剪）。
@@ -530,6 +532,22 @@ impl ModelManager {
             t_total.elapsed()
         );
         Ok(result)
+    }
+
+    pub fn explain_form(&self, form_json: &str) -> Result<String> {
+        let mut guard = self.lock();
+        Self::ensure_running(
+            &mut guard,
+            "models/qwen2vl/model.gguf",
+            "models/qwen2vl/mmproj.gguf",
+            "intelnet-llama-server.log",
+            None,
+        )?;
+        let content = serde_json::Value::String(format!("{}{}", FORM_PROMPT_PREFIX, form_json));
+        guard
+            .as_ref()
+            .context("服务未运行")?
+            .stream_completion(content, 256, 0.2, |_| {})
     }
 
     /// 应用退出时调用，结束 llama-server 子进程。

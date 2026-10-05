@@ -21,6 +21,7 @@ class BrowserWidget : public QWebEngineView {
 public:
     struct MissingAltImage {
         int index;
+        QString id;
         QString src;
     };
 
@@ -61,7 +62,11 @@ public:
     void captureElement(const QString &id, std::function<void(const QImage&)> callback);
     void setButtonAriaLabel(const QString &id, const QString &label);
     void requestCaptchaCandidate(std::function<void(const CaptchaCandidate&)> callback);
-    void playAudioCaptcha();
+    void playAudioCaptcha(std::function<void(bool)> callback);
+    void requestFormStructure(std::function<void(const QString&)> callback);
+    void armFormConfirmation();
+    void cancelFormConfirmation();
+    void focusFormField(int formIndex, int fieldIndex);
     void scrollToHeading(const QString &id);
 
     // 异步获取页面中所有图片的 URL
@@ -72,6 +77,7 @@ public:
 
     // 将描述写回指定图片的 alt 属性
     void setImageAlt(int index, const QString &alt);
+    void setImageAltById(const QString &id, const QString &alt);
 
     // 让用户在页面中点击一张图片，回调返回其 data URL（取消时返回空字符串）
     void pickImage(std::function<void(const QString&)> callback);
@@ -87,14 +93,17 @@ signals:
     void redirectChainBlocked(const QUrl &url);
     void warningActionRequested(const QString &action, const QUrl &url);
     void repeatedAlertBlocked();
+    void formSubmitIntercepted(const QString &payload);
 
 private:
     void setupPage();
     void injectPickScript();
     void installPopupObserver();
+    void installFormGuards();
 
     QTimer *pickTimer_;
     QTimer *popupTimer_;
+    QTimer *formTimer_;
     std::function<void(const QString&)> pickCallback_;
     int pickElapsedMs_;
 };

@@ -224,6 +224,47 @@ pub unsafe extern "C" fn intelnet_ocr_captcha(
         .unwrap_or(std::ptr::null_mut())
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn intelnet_explain_form(
+    form_json: *const c_char,
+    speak: i32,
+) -> *mut c_char {
+    if form_json.is_null() {
+        return std::ptr::null_mut();
+    }
+    let text = match CStr::from_ptr(form_json).to_str() {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let model = MODEL_MANAGER.lock().unwrap();
+    let Some(manager) = model.as_ref() else {
+        return std::ptr::null_mut();
+    };
+    let result = manager.explain_form(text);
+    let json = match result {
+        Ok(answer) => {
+            if speak != 0 {
+                let mut splitter = SentenceSplitter::new();
+                for sentence in splitter.push(&answer) {
+                    if let Some(player) = TTS_PLAYER.lock().unwrap().as_ref() {
+                        player.speak(sentence);
+                    }
+                }
+                if let Some(sentence) = splitter.finish() {
+                    if let Some(player) = TTS_PLAYER.lock().unwrap().as_ref() {
+                        player.speak(sentence);
+                    }
+                }
+            }
+            serde_json::json!({"success": true, "result": answer})
+        }
+        Err(error) => serde_json::json!({"success": false, "error": error.to_string()}),
+    };
+    CString::new(json.to_string())
+        .map(CString::into_raw)
+        .unwrap_or(std::ptr::null_mut())
+}
+
 /// 总结一段纯文本（网页内容）
 /// text: 网页正文
 /// 返回 JSON 字符串，需要调用 intelnet_free_string 释放
@@ -302,8 +343,11 @@ pub unsafe extern "C" fn intelnet_speak(text: *const c_char) -> i32 {
 
     let tts = TTS_PLAYER.lock().unwrap();
     if let Some(player) = tts.as_ref() {
-        player.speak(text_str.to_string());
-        0
+        if player.speak(text_str.to_string()) {
+            0
+        } else {
+            -2
+        }
     } else {
         -2
     }
