@@ -11,6 +11,7 @@
 #include <QAction>
 #include <QMenu>
 #include <QDialog>
+#include <QDockWidget>
 #include <QResizeEvent>
 #include <QMoveEvent>
 #include <QList>
@@ -83,6 +84,7 @@ private:
     // 核心组件
     BrowserWidget *browserWidget_;
     VoicePanel *voicePanel_;
+    QDockWidget *voiceDock_;
 
     // Rust 桥接
     std::unique_ptr<RustBridge> rustBridge_;

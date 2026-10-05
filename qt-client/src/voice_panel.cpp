@@ -47,9 +47,9 @@ VoicePanel::~VoicePanel() {
 }
 
 void VoicePanel::setupUi() {
-    setFixedSize(420, 620);
-    setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-    setAttribute(Qt::WA_TranslucentBackground, true);
+    setMinimumWidth(380);
+    setMinimumHeight(420);
+    setFocusPolicy(Qt::StrongFocus);
 
     // 外层留白给投影
     QVBoxLayout *root = new QVBoxLayout(this);
@@ -446,7 +446,7 @@ void VoicePanel::onUploadImageClicked() {
 }
 
 void VoicePanel::onCloseClicked() {
-    hide();
+    emit panelCloseRequested();
 }
 
 // ===== 拖动无边框窗口 =====

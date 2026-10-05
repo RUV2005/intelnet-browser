@@ -42,6 +42,7 @@ signals:
     void captchaRequested();
     void audioCaptchaRequested();
     void formRequested();
+    void panelCloseRequested();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;

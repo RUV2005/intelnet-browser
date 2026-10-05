@@ -31,6 +31,7 @@ MainWindow::MainWindow(QWidget *parent)
     , menuButton_(nullptr)
     , browserWidget_(nullptr)
     , voicePanel_(nullptr)
+    , voiceDock_(nullptr)
     , rustBridge_(nullptr)
     , missingAltIndex_(0)
     , analyzingMissingImages_(false)
@@ -67,9 +68,19 @@ void MainWindow::setupUi() {
     browserWidget_ = new BrowserWidget(this);
     mainLayout->addWidget(browserWidget_);
 
-    // 创建语音助手面板（浮动窗口）
+    // 创建语音助手面板（主窗口右侧停靠）
     voicePanel_ = new VoicePanel(this);
-    voicePanel_->hide();  // 默认隐藏
+    voiceDock_ = new QDockWidget("语音助手", this);
+    voiceDock_->setObjectName("VoiceDock");
+    voiceDock_->setAllowedAreas(Qt::RightDockWidgetArea);
+    voiceDock_->setFeatures(QDockWidget::NoDockWidgetFeatures);
+    voiceDock_->setFocusPolicy(Qt::StrongFocus);
+    auto *dockTitleBar = new QWidget(voiceDock_);
+    dockTitleBar->setFixedHeight(0);
+    voiceDock_->setTitleBarWidget(dockTitleBar);
+    voiceDock_->setWidget(voicePanel_);
+    addDockWidget(Qt::RightDockWidgetArea, voiceDock_);
+    voiceDock_->hide();
 
     setCentralWidget(centralWidget);
 }
@@ -226,6 +237,7 @@ void MainWindow::setupConnections() {
     connect(voicePanel_, &VoicePanel::captchaRequested, this, &MainWindow::onCaptchaRequested);
     connect(voicePanel_, &VoicePanel::audioCaptchaRequested, this, &MainWindow::onAudioCaptchaRequested);
     connect(voicePanel_, &VoicePanel::formRequested, this, &MainWindow::onFormRequested);
+    connect(voicePanel_, &VoicePanel::panelCloseRequested, voiceDock_, &QDockWidget::hide);
     connect(browserWidget_, &BrowserWidget::formSubmitIntercepted,
             this, &MainWindow::onFormSubmitIntercepted);
 }
@@ -363,14 +375,14 @@ void MainWindow::onRepeatedAlertBlocked() {
 // ===== 语音助手槽函数 =====
 
 void MainWindow::showVoicePanel() {
-    voicePanel_->show();
-    voicePanel_->raise();
-    voicePanel_->adjustPosition(this);
+    voiceDock_->show();
+    voiceDock_->raise();
+    voiceDock_->setFocus();
 }
 
 void MainWindow::onVoiceButtonClicked() {
-    if (voicePanel_->isVisible()) {
-        voicePanel_->hide();
+    if (voiceDock_->isVisible()) {
+        voiceDock_->hide();
     } else {
         showVoicePanel();
     }
@@ -378,16 +390,10 @@ void MainWindow::onVoiceButtonClicked() {
 
 void MainWindow::resizeEvent(QResizeEvent *event) {
     QMainWindow::resizeEvent(event);
-    if (voicePanel_ && voicePanel_->isVisible()) {
-        voicePanel_->adjustPosition(this);
-    }
 }
 
 void MainWindow::moveEvent(QMoveEvent *event) {
     QMainWindow::moveEvent(event);
-    if (voicePanel_ && voicePanel_->isVisible()) {
-        voicePanel_->adjustPosition(this);
-    }
 }
 
 void MainWindow::onAnalyzePageClicked() {
