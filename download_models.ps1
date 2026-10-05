@@ -14,7 +14,8 @@ $ErrorActionPreference = "Stop"
 $QWEN_REPO = "danmo6321/intelnet-Qwen2-VL-2B-GGUF"
 $QWEN_REVISION = "master"
 $QWEN_FILES = @("model.gguf", "mmproj.gguf")
-$PIPER_MODEL_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/models/vits-medium.onnx"
+$PIPER_MODEL_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/chaowen/medium/zh_CN-chaowen-medium.onnx"
+$PIPER_CONFIG_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/chaowen/medium/zh_CN-chaowen-medium.onnx.json"
 
 $RESOURCES_DIR = Join-Path $PSScriptRoot "resources"
 $MODELS_DIR = Join-Path $RESOURCES_DIR "models"
@@ -90,7 +91,8 @@ if (-not $SkipPiper) {
     Write-Host "[*] Downloading Piper TTS model..." -ForegroundColor Yellow
     Write-Host "    URL: $PIPER_MODEL_URL" -ForegroundColor Gray
 
-    $piperPath = Join-Path $PIPER_DIR "vits-medium.onnx"
+    $piperPath = Join-Path $PIPER_DIR "chaowen.onnx"
+    $piperConfigPath = Join-Path $PIPER_DIR "chaowen.onnx.json"
 
     if (Test-Path $piperPath) {
         Write-Host "[!] Model already exists: $piperPath" -ForegroundColor Yellow
@@ -98,14 +100,19 @@ if (-not $SkipPiper) {
         if ($answer -ne "y") {
             Write-Host "[*] Skipping Piper download" -ForegroundColor Gray
         } else {
-            # Invoke-WebRequest -Uri $PIPER_MODEL_URL -OutFile $piperPath
-            Write-Host "[!] Please download manually from: $PIPER_MODEL_URL" -ForegroundColor Yellow
-            Write-Host "    Save to: $piperPath" -ForegroundColor Gray
+            Invoke-WebRequest -Uri $PIPER_MODEL_URL -OutFile $piperPath
+            Write-Host "[+] Piper model downloaded" -ForegroundColor Green
         }
     } else {
-        # Invoke-WebRequest -Uri $PIPER_MODEL_URL -OutFile $piperPath
-        Write-Host "[!] Please download manually from: $PIPER_MODEL_URL" -ForegroundColor Yellow
-        Write-Host "    Save to: $piperPath" -ForegroundColor Gray
+        Invoke-WebRequest -Uri $PIPER_MODEL_URL -OutFile $piperPath
+        Write-Host "[+] Piper model downloaded" -ForegroundColor Green
+    }
+
+    if (Test-Path $piperConfigPath) {
+        Write-Host "[!] Piper config already exists: $piperConfigPath" -ForegroundColor Yellow
+    } else {
+        Invoke-WebRequest -Uri $PIPER_CONFIG_URL -OutFile $piperConfigPath
+        Write-Host "[+] Piper config downloaded" -ForegroundColor Green
     }
 }
 

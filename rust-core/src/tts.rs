@@ -103,7 +103,7 @@ impl PiperWorker {
             .or_else(|_| which::which("python3"))
             .context("找不到 python 或 python3")?;
 
-        let root = crate::ai::resources_root_for("piper/vits-medium.onnx")?;
+        let root = crate::ai::resources_root_for("piper/chaowen.onnx")?;
         let script_path = root.join("tts_synthesize.py");
 
         let mut cmd = Command::new(&python_exe);
@@ -209,8 +209,8 @@ pub struct PiperEngine {
 
 impl PiperEngine {
     pub fn new() -> Result<Self> {
-        let root = crate::ai::resources_root_for("piper/vits-medium.onnx")?;
-        let model_path = root.join("piper").join("vits-medium.onnx");
+        let root = crate::ai::resources_root_for("piper/chaowen.onnx")?;
+        let model_path = root.join("piper").join("chaowen.onnx");
 
         if !model_path.exists() {
             anyhow::bail!("找不到 Piper 模型: {:?}", model_path);
