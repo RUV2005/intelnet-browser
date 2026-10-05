@@ -32,7 +32,7 @@ public:
 
     // 供主窗口调用的状态展示接口
     void showBusy(const QString &message);
-    void showTextResult(const QString &text);
+    void showTextResult(const QString &text, bool speak = true);
     void showError(const QString &message);
 
 signals:

@@ -387,6 +387,66 @@ void BrowserWidget::requestPageSource(std::function<void(const QString&)> callba
     });
 }
 
+void BrowserWidget::requestHeadingOutline(
+    std::function<void(const QList<HeadingEntry>&)> callback) {
+    static const char *kScript = R"JS(
+(function () {
+  var out = [];
+  var heads = document.querySelectorAll('h1,h2,h3,h4,h5,h6');
+  for (var i = 0; i < heads.length; i++) {
+    var h = heads[i];
+    var text = (h.innerText || '').replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+    var p = h.parentElement, chrome = false;
+    while (p && p !== document.body) {
+      var tag = p.tagName.toLowerCase();
+      if (tag === 'nav' || tag === 'header' || tag === 'footer' || tag === 'aside') {
+        chrome = true;
+        break;
+      }
+      p = p.parentElement;
+    }
+    if (chrome) continue;
+    if (!h.id) h.id = '__intelnet_h_' + i;
+    out.push({level: parseInt(h.tagName[1]), text: text, id: h.id});
+  }
+  return JSON.stringify(out);
+})();
+)JS";
+
+    page()->runJavaScript(QString::fromUtf8(kScript),
+        [callback](const QVariant &v) {
+            QList<HeadingEntry> headings;
+            const QJsonDocument doc = QJsonDocument::fromJson(v.toString().toUtf8());
+            if (doc.isArray()) {
+                for (const QJsonValue &value : doc.array()) {
+                    if (!value.isObject()) continue;
+                    const QJsonObject object = value.toObject();
+                    const QString text = object.value("text").toString().trimmed();
+                    const QString id = object.value("id").toString();
+                    const int level = object.value("level").toInt(0);
+                    if (!text.isEmpty() && !id.isEmpty() && level >= 1 && level <= 6) {
+                        headings.append({level, text, id});
+                    }
+                }
+            }
+            if (callback) callback(headings);
+        });
+}
+
+void BrowserWidget::scrollToHeading(const QString &id) {
+    QJsonArray values;
+    values.append(id);
+    const QString jsonArray = QString::fromUtf8(
+        QJsonDocument(values).toJson(QJsonDocument::Compact));
+    const QString jsonLiteral = jsonArray.mid(1, jsonArray.size() - 2);
+    const QString script = QString(
+        "(function(){var h=document.getElementById(%1);"
+        "if(h)h.scrollIntoView({block:'start',behavior:'smooth'});})();")
+        .arg(jsonLiteral);
+    page()->runJavaScript(script);
+}
+
 void BrowserWidget::requestImageUrls(std::function<void(const QStringList&)> callback) {
     static const char *kScript =
         "(function(){"

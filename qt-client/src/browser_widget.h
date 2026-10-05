@@ -22,6 +22,12 @@ public:
         QString src;
     };
 
+    struct HeadingEntry {
+        int level;
+        QString text;
+        QString id;
+    };
+
     explicit BrowserWidget(QWidget *parent = nullptr);
     ~BrowserWidget();
 
@@ -38,6 +44,8 @@ public:
 
     // 异步获取当前页面的结构化源码（URL/标题/描述/标题层级/正文/图片/链接）
     void requestPageSource(std::function<void(const QString&)> callback);
+    void requestHeadingOutline(std::function<void(const QList<HeadingEntry>&)> callback);
+    void scrollToHeading(const QString &id);
 
     // 异步获取页面中所有图片的 URL
     void requestImageUrls(std::function<void(const QStringList&)> callback);

@@ -93,7 +93,16 @@ void RustBridge::AnalyzeImageAsync(
 
     // 在新线程中执行，避免阻塞 UI
     std::thread([this, image_data, callback]() {
-        std::string result = AnalyzeImage(image_data);
+        if (!initialized_) {
+            callback(R"({"success": false, "error": "核心库未初始化"})", false);
+            return;
+        }
+
+        char* raw = intelnet_analyze_image_stream(image_data.c_str());
+        std::string result = raw
+            ? std::string(raw)
+            : R"({"success": false, "error": "分析失败"})";
+        if (raw) intelnet_free_string(raw);
         callback(result, jsonSuccess(result));
     }).detach();
 }

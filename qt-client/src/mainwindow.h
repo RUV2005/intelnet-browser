@@ -10,6 +10,7 @@
 #include <QVBoxLayout>
 #include <QAction>
 #include <QMenu>
+#include <QDialog>
 #include <QResizeEvent>
 #include <QMoveEvent>
 #include <QList>
@@ -48,6 +49,7 @@ private slots:
     // 语音助手
     void onVoiceButtonClicked();
     void onAnalyzePageClicked();
+    void onOutlineRequested();
     void onAnalyzeImageClicked();
     void onDescribeMissingImagesClicked();
     void onUploadImageClicked();
@@ -58,6 +60,7 @@ private:
     void setupConnections();
     void initializeRustCore();
     void showVoicePanel();
+    void showHeadingOutline(const QList<BrowserWidget::HeadingEntry> &headings);
     void showRedirectWarning(const QUrl &url);
     void analyzeNextMissingImage();
 

@@ -19,9 +19,9 @@ macro_rules! logln {
 
 /// 送进模型前，图片长边的上限（像素）。
 /// 672 ≈ 360 个图像 token，画质接近原图；448 更快但会丢细节。
-const MAX_EDGE: u32 = 672;
+const MAX_EDGE: u32 = 448;
 /// 单次回答最多生成的 token 数。
-const MAX_TOKENS: u32 = 256;
+const MAX_TOKENS: u32 = 150;
 /// 发给模型的提示词。
 const PROMPT: &str = "请用中文详细描述这张图片。";
 /// 页面摘要提示词前缀。

@@ -10,6 +10,7 @@ extern "C" {
     int intelnet_init();
     int intelnet_init_model();
     char* intelnet_analyze_image(const char* image_data);
+    char* intelnet_analyze_image_stream(const char* image_data);
     char* intelnet_summarize_text(const char* text);
     int intelnet_speak(const char* text);
     void intelnet_stop_speaking();

@@ -6,6 +6,8 @@ use std::sync::Mutex;
 mod ai;
 mod tts;
 
+use tts::SentenceSplitter;
+
 // 全局状态管理
 static MODEL_MANAGER: Mutex<Option<ai::ModelManager>> = Mutex::new(None);
 static TTS_PLAYER: Mutex<Option<tts::TtsPlayer>> = Mutex::new(None);
@@ -103,6 +105,52 @@ pub unsafe extern "C" fn intelnet_analyze_image(image_data: *const c_char) -> *m
     } else {
         std::ptr::null_mut()
     }
+}
+
+/// 流式分析图片，并在完整句子生成后排队交给本地 TTS。
+/// 返回完整 JSON 字符串，供客户端显示最终分析结果。
+#[no_mangle]
+pub unsafe extern "C" fn intelnet_analyze_image_stream(image_data: *const c_char) -> *mut c_char {
+    if image_data.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let c_str = CStr::from_ptr(image_data);
+    let image_str = match c_str.to_str() {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    println!("开始流式分析图片...");
+    let model = MODEL_MANAGER.lock().unwrap();
+    let Some(manager) = model.as_ref() else {
+        return std::ptr::null_mut();
+    };
+
+    let mut splitter = SentenceSplitter::new();
+    let result = manager.analyze_image_stream(image_str, |piece| {
+        for sentence in splitter.push(piece) {
+            if let Some(player) = TTS_PLAYER.lock().unwrap().as_ref() {
+                player.speak(sentence);
+            }
+        }
+    });
+
+    let json = match result {
+        Ok(text) => {
+            if let Some(sentence) = splitter.finish() {
+                if let Some(player) = TTS_PLAYER.lock().unwrap().as_ref() {
+                    player.speak(sentence);
+                }
+            }
+            serde_json::json!({"success": true, "result": text})
+        }
+        Err(error) => serde_json::json!({"success": false, "error": error.to_string()}),
+    };
+
+    CString::new(json.to_string())
+        .map(CString::into_raw)
+        .unwrap_or(std::ptr::null_mut())
 }
 
 /// 总结一段纯文本（网页内容）

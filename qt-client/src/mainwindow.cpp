@@ -11,6 +11,8 @@
 #include <QDebug>
 #include <QTimer>
 #include <QUrlQuery>
+#include <QScrollArea>
+#include <QLabel>
 
 namespace IntelNet {
 
@@ -137,9 +139,10 @@ void MainWindow::setupToolbar() {
             "Alt+← / Alt+→：后退 / 前进\n"
             "F5：刷新\n"
             "Ctrl+Shift+V：打开/关闭语音助手\n"
-            "Ctrl+Shift+S：页面摘要\n"
-            "Ctrl+Shift+A：分析网页图片\n"
-            "Alt+D：描述页面中无 alt 的图片\n"
+             "Ctrl+Shift+S：页面摘要\n"
+             "Ctrl+Shift+A：分析网页图片\n"
+             "Ctrl+Shift+O：页面大纲\n"
+             "Alt+D：描述页面中无 alt 的图片\n"
             "Ctrl+Shift+U：上传本地图片");
     });
     connect(aboutAction, &QAction::triggered, this, [this]() {
@@ -155,6 +158,9 @@ void MainWindow::setupToolbar() {
     QShortcut *describeImagesShortcut = new QShortcut(QKeySequence("Alt+D"), this);
     connect(describeImagesShortcut, &QShortcut::activated,
             this, &MainWindow::onDescribeMissingImagesClicked);
+
+    QShortcut *outlineShortcut = new QShortcut(QKeySequence("Ctrl+Shift+O"), this);
+    connect(outlineShortcut, &QShortcut::activated, this, &MainWindow::onOutlineRequested);
 }
 
 void MainWindow::setupConnections() {
@@ -372,6 +378,71 @@ void MainWindow::onAnalyzePageClicked() {
                 }, Qt::QueuedConnection);
             });
     });
+}
+
+void MainWindow::onOutlineRequested() {
+    showVoicePanel();
+    voicePanel_->showBusy("正在提取页面标题...");
+    statusBar()->showMessage("正在提取页面标题...", 3000);
+
+    browserWidget_->requestHeadingOutline([this](
+        const QList<BrowserWidget::HeadingEntry> &headings) {
+        if (headings.isEmpty()) {
+            const QString message = "本页没有可用的标题结构";
+            voicePanel_->showTextResult(message);
+            statusBar()->showMessage(message, 5000);
+            return;
+        }
+
+        const QString message = QString("已生成页面大纲，共 %1 个标题").arg(headings.size());
+        voicePanel_->showTextResult(message);
+        statusBar()->showMessage(message, 5000);
+        showHeadingOutline(headings);
+    });
+}
+
+void MainWindow::showHeadingOutline(
+    const QList<BrowserWidget::HeadingEntry> &headings) {
+    QDialog dialog(this);
+    dialog.setWindowTitle("页面大纲");
+    dialog.setMinimumSize(520, 620);
+
+    QVBoxLayout *root = new QVBoxLayout(&dialog);
+    QLabel *hint = new QLabel("选择标题跳转到对应章节", &dialog);
+    hint->setAccessibleName("页面大纲说明");
+    root->addWidget(hint);
+
+    QScrollArea *scroll = new QScrollArea(&dialog);
+    scroll->setWidgetResizable(true);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    QWidget *content = new QWidget(scroll);
+    QVBoxLayout *items = new QVBoxLayout(content);
+    items->setContentsMargins(4, 4, 12, 4);
+    items->setSpacing(6);
+
+    int firstLevel = headings.first().level;
+    int previousDepth = 0;
+    for (int i = 0; i < headings.size(); ++i) {
+        const auto &heading = headings.at(i);
+        const int relativeLevel = qMax(0, heading.level - firstLevel);
+        const int depth = i == 0 ? 0 : qMin(relativeLevel, previousDepth + 1);
+        previousDepth = depth;
+
+        QPushButton *button = new QPushButton(heading.text, content);
+        button->setAccessibleName(QString("第 %1 级标题：%2").arg(depth + 1).arg(heading.text));
+        button->setCursor(Qt::PointingHandCursor);
+        button->setStyleSheet(QString("text-align:left;padding:9px 12px 9px %1px;").arg(12 + depth * 24));
+        connect(button, &QPushButton::clicked, &dialog, [this, &dialog, id = heading.id]() {
+            browserWidget_->scrollToHeading(id);
+            dialog.accept();
+        });
+        items->addWidget(button);
+    }
+    items->addStretch();
+    content->setLayout(items);
+    scroll->setWidget(content);
+    root->addWidget(scroll);
+    dialog.exec();
 }
 
 void MainWindow::onAnalyzeImageClicked() {

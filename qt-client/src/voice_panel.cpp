@@ -358,12 +358,12 @@ void VoicePanel::showBusy(const QString &message) {
     enablePlayback(false);
 }
 
-void VoicePanel::showTextResult(const QString &text) {
+void VoicePanel::showTextResult(const QString &text, bool speak) {
     updateStatus("分析完成", Color::Success);
     setVoiceText(text);
     enablePlayback(true);
 
-    if (rustBridge_ && !text.isEmpty()) {
+    if (speak && rustBridge_ && !text.isEmpty()) {
         rustBridge_->Speak(text.toStdString());
         setPlaying(true);
         updateStatus("正在朗读", Color::Success);
@@ -390,7 +390,7 @@ void VoicePanel::onImageAnalysisComplete(const QString &result, bool success) {
         return;
     }
 
-    showTextResult(text);
+    showTextResult(text, false);
 }
 
 // ===== 槽函数 =====

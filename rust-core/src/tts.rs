@@ -9,12 +9,10 @@ use std::sync::{Arc, Mutex};
 
 // ───────────────────────── 切句器 ─────────────────────────
 
-#[allow(dead_code)]
 pub struct SentenceSplitter {
     buf: String,
 }
 
-#[allow(dead_code)]
 impl SentenceSplitter {
     const MIN_CHARS: usize = 8; // 太短的片段并入下一句
     const MAX_CHARS: usize = 60; // 超长时在逗号处强行切开
