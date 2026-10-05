@@ -537,6 +537,63 @@ void BrowserWidget::setButtonAriaLabel(const QString &id, const QString &label) 
         "if(e)e.setAttribute('aria-label',a[1]);})();").arg(json));
 }
 
+void BrowserWidget::requestCaptchaCandidate(
+    std::function<void(const CaptchaCandidate&)> callback) {
+    static const char *kScript = R"JS(
+(function () {
+  var best = null, bestScore = 0;
+  var imgs = document.querySelectorAll('img');
+  for (var i = 0; i < imgs.length; i++) {
+    var img = imgs[i], rect = img.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    var score = 0, p = img.parentElement;
+    while (p && p !== document.body) {
+      if (p.tagName.toLowerCase() === 'form') { score += 100; break; }
+      p = p.parentElement;
+    }
+    p = img.parentElement;
+    for (var j = 0; p && j < 3; j++, p = p.parentElement) {
+      if (p.querySelector('input[type="password"]')) { score += 50; break; }
+    }
+    var meta = ((img.src || '') + ' ' + (img.alt || '')).toLowerCase();
+    if (/captcha|verify|yzm|验证码/.test(meta)) score += 25;
+    if (!score) continue;
+    if (!img.id) img.id = '__intelnet_captcha_' + i;
+    if (!best || score > bestScore) {
+      best = {id: img.id, src: img.currentSrc || img.src || ''};
+      bestScore = score;
+    }
+  }
+  return JSON.stringify(best || {});
+})();
+)JS";
+    page()->runJavaScript(QString::fromUtf8(kScript), [callback](const QVariant &v) {
+        CaptchaCandidate candidate;
+        const QJsonDocument doc = QJsonDocument::fromJson(v.toString().toUtf8());
+        if (doc.isObject()) {
+            candidate.id = doc.object().value("id").toString();
+            candidate.src = doc.object().value("src").toString();
+        }
+        if (callback) callback(candidate);
+    });
+}
+
+void BrowserWidget::playAudioCaptcha() {
+    page()->runJavaScript(R"JS(
+(function () {
+  var nodes = document.querySelectorAll('button,a,[role="button"]');
+  for (var i = 0; i < nodes.length; i++) {
+    var text = (nodes[i].innerText || nodes[i].getAttribute('aria-label') || '').trim();
+    if (/语音验证码|音频验证码|听语音/.test(text)) { nodes[i].click(); break; }
+  }
+  setTimeout(function () {
+    var audio = document.querySelector('audio');
+    if (audio) { audio.currentTime = 0; audio.play().catch(function () {}); }
+  }, 500);
+})();
+)JS");
+}
+
 void BrowserWidget::requestImageUrls(std::function<void(const QStringList&)> callback) {
     static const char *kScript =
         "(function(){"

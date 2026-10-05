@@ -3,7 +3,8 @@
 
 param(
     [switch]$SkipQwen,
-    [switch]$SkipPiper
+    [switch]$SkipPiper,
+    [switch]$SkipOcr
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,15 +20,39 @@ $RESOURCES_DIR = Join-Path $PSScriptRoot "resources"
 $MODELS_DIR = Join-Path $RESOURCES_DIR "models"
 $QWEN_DIR = Join-Path $MODELS_DIR "qwen2vl"
 $PIPER_DIR = Join-Path $RESOURCES_DIR "piper"
+$OCR_DIR = Join-Path $MODELS_DIR "paddleocr-vl"
+$OCR_REPO = "PaddlePaddle/PaddleOCR-VL-1.6-GGUF"
+$OCR_FILES = @("PaddleOCR-VL-1.6-GGUF.gguf", "PaddleOCR-VL-1.6-GGUF-mmproj.gguf")
 
 Write-Host "=== IntelNet Model Downloader ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Create directories
-foreach ($d in @($MODELS_DIR, $QWEN_DIR, $PIPER_DIR)) {
+foreach ($d in @($MODELS_DIR, $QWEN_DIR, $PIPER_DIR, $OCR_DIR)) {
     if (-not (Test-Path $d)) {
         New-Item -ItemType Directory -Path $d | Out-Null
         Write-Host "[+] Created directory: $d" -ForegroundColor Green
+    }
+}
+
+if (-not $SkipOcr) {
+    Write-Host ""
+    Write-Host "[*] Downloading PaddleOCR-VL-1.6 model files..." -ForegroundColor Yellow
+    foreach ($f in $OCR_FILES) {
+        $url = "https://www.modelscope.cn/models/$OCR_REPO/resolve/master/$f"
+        $dest = Join-Path $OCR_DIR $f
+        if (Test-Path $dest) {
+            Write-Host "    [!] Already exists, skipping: $f" -ForegroundColor Yellow
+            continue
+        }
+        Write-Host "    Downloading $f ..." -ForegroundColor Gray
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $dest
+            Write-Host "    [+] Done: $f" -ForegroundColor Green
+        } catch {
+            Write-Host "    [!] Download failed: $f" -ForegroundColor Red
+            Write-Host "        Manual link: $url" -ForegroundColor Gray
+        }
     }
 }
 
@@ -90,4 +115,5 @@ Write-Host ""
 Write-Host "Required files:" -ForegroundColor White
 Write-Host "  1. Qwen2-VL-2B GGUF (model.gguf, mmproj.gguf) -> $QWEN_DIR" -ForegroundColor Gray
 Write-Host "  2. Piper TTS model -> $PIPER_DIR" -ForegroundColor Gray
+Write-Host "  3. PaddleOCR-VL-1.6 model files -> $OCR_DIR" -ForegroundColor Gray
 Write-Host ""

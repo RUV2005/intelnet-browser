@@ -183,6 +183,47 @@ pub unsafe extern "C" fn intelnet_describe_button_stream(image_data: *const c_ch
         .unwrap_or(std::ptr::null_mut())
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn intelnet_ocr_captcha(
+    image_data: *const c_char,
+    speak: i32,
+) -> *mut c_char {
+    if image_data.is_null() {
+        return std::ptr::null_mut();
+    }
+    let image_str = match CStr::from_ptr(image_data).to_str() {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let model = MODEL_MANAGER.lock().unwrap();
+    let Some(manager) = model.as_ref() else {
+        return std::ptr::null_mut();
+    };
+    let result = manager.ocr_captcha(image_str);
+    let json = match result {
+        Ok(text) => {
+            if speak != 0 {
+                let spoken = text
+                    .chars()
+                    .filter(|c| c.is_alphanumeric())
+                    .map(|c| c.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if !spoken.is_empty() {
+                    if let Some(player) = TTS_PLAYER.lock().unwrap().as_ref() {
+                        player.speak(spoken);
+                    }
+                }
+            }
+            serde_json::json!({"success": true, "result": text})
+        }
+        Err(error) => serde_json::json!({"success": false, "error": error.to_string()}),
+    };
+    CString::new(json.to_string())
+        .map(CString::into_raw)
+        .unwrap_or(std::ptr::null_mut())
+}
+
 /// 总结一段纯文本（网页内容）
 /// text: 网页正文
 /// 返回 JSON 字符串，需要调用 intelnet_free_string 释放

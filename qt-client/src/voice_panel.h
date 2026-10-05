@@ -39,6 +39,8 @@ signals:
     void analyzePageRequested();
     void analyzeImageRequested();
     void uploadImageRequested();
+    void captchaRequested();
+    void audioCaptchaRequested();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -76,6 +78,8 @@ private:
     QPushButton *analyzePageBtn_;
     QPushButton *analyzeImageBtn_;
     QPushButton *uploadImageBtn_;
+    QPushButton *captchaBtn_;
+    QPushButton *audioCaptchaBtn_;
     QPushButton *closeBtn_;
 
     // Rust 桥接

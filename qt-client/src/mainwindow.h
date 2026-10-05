@@ -53,6 +53,8 @@ private slots:
     void onAnalyzeImageClicked();
     void onDescribeMissingImagesClicked();
     void onUploadImageClicked();
+    void onCaptchaRequested();
+    void onAudioCaptchaRequested();
 
 private:
     void setupUi();

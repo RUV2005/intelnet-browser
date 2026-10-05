@@ -35,6 +35,11 @@ public:
         QRectF rect;
     };
 
+    struct CaptchaCandidate {
+        QString id;
+        QString src;
+    };
+
     explicit BrowserWidget(QWidget *parent = nullptr);
     ~BrowserWidget();
 
@@ -55,6 +60,8 @@ public:
     void requestUnnamedButtons(std::function<void(const QList<UnnamedButton>&)> callback);
     void captureElement(const QString &id, std::function<void(const QImage&)> callback);
     void setButtonAriaLabel(const QString &id, const QString &label);
+    void requestCaptchaCandidate(std::function<void(const CaptchaCandidate&)> callback);
+    void playAudioCaptcha();
     void scrollToHeading(const QString &id);
 
     // 异步获取页面中所有图片的 URL

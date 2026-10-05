@@ -22,6 +22,7 @@ int intelnet_init_model(void);
 char* intelnet_analyze_image(const char* image_data);
 char* intelnet_analyze_image_stream(const char* image_data, int speak);
 char* intelnet_describe_button_stream(const char* image_data);
+char* intelnet_ocr_captcha(const char* image_data, int speak);
 
 // 总结一段纯文本（网页内容）
 // text: 网页正文

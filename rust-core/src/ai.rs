@@ -20,12 +20,14 @@ macro_rules! logln {
 /// 送进模型前，图片长边的上限（像素）。
 /// 672 ≈ 360 个图像 token，画质接近原图；448 更快但会丢细节。
 const MAX_EDGE: u32 = 448;
+const OCR_MAX_EDGE: u32 = 336;
 /// 单次回答最多生成的 token 数。
 const MAX_TOKENS: u32 = 150;
 /// 发给模型的提示词。
 const PROMPT: &str = "请用中文详细描述这张图片。";
 const BUTTON_PROMPT: &str =
     "这是一个网页按钮，只看图标样式，用中文一句话说出它的功能，只输出功能本身。";
+const OCR_PROMPT: &str = "只输出图片中的文字，不要解释。";
 /// 页面摘要提示词前缀。
 const SUMMARY_PROMPT_PREFIX: &str =
     "以下是从网页中提取的结构化源码（包含 URL、标题、标题层级、正文、图片、链接等）。\
@@ -119,11 +121,15 @@ fn load_image_bytes(image_data: &str) -> Result<Vec<u8>> {
 
 /// 只缩小不放大，统一转成 RGB JPEG（去掉透明通道，也减小体积）。
 fn shrink_for_model(bytes: &[u8]) -> Result<Vec<u8>> {
+    shrink_for_model_with_edge(bytes, MAX_EDGE)
+}
+
+fn shrink_for_model_with_edge(bytes: &[u8], max_edge: u32) -> Result<Vec<u8>> {
     let img = image::load_from_memory(bytes).context("无法解析图片")?;
     let (w, h) = (img.width(), img.height());
 
-    let img = if w.max(h) > MAX_EDGE {
-        img.resize(MAX_EDGE, MAX_EDGE, FilterType::Lanczos3)
+    let img = if w.max(h) > max_edge {
+        img.resize(max_edge, max_edge, FilterType::Lanczos3)
     } else {
         img
     };
@@ -146,12 +152,18 @@ struct LlamaServer {
 }
 
 impl LlamaServer {
-    fn start() -> Result<Self> {
+    fn start(
+        model_rel: &str,
+        mmproj_rel: &str,
+        log_name: &str,
+        model_root: Option<PathBuf>,
+    ) -> Result<Self> {
         let root = resources_root()?;
         let llama_dir = root.join("llama");
         let server_exe = llama_dir.join(SERVER_EXE);
-        let model = root.join("models").join("qwen2vl").join("model.gguf");
-        let mmproj = root.join("models").join("qwen2vl").join("mmproj.gguf");
+        let model_base = model_root.as_ref().unwrap_or(&root);
+        let model = model_base.join(model_rel);
+        let mmproj = model_base.join(mmproj_rel);
 
         for p in [&model, &mmproj] {
             if !p.exists() {
@@ -169,7 +181,7 @@ impl LlamaServer {
             .map(|n| n.get())
             .unwrap_or(4);
 
-        let log_path = std::env::temp_dir().join("intelnet-llama-server.log");
+        let log_path = std::env::temp_dir().join(log_name);
         let log = File::create(&log_path).context("无法创建日志文件")?;
         let log_err = log.try_clone()?;
 
@@ -361,12 +373,14 @@ fn tail_of(path: &Path, n: usize) -> String {
 
 pub struct ModelManager {
     server: Mutex<Option<LlamaServer>>,
+    ocr_server: Mutex<Option<LlamaServer>>,
 }
 
 impl ModelManager {
     pub fn new() -> Self {
         Self {
             server: Mutex::new(None),
+            ocr_server: Mutex::new(None),
         }
     }
 
@@ -375,21 +389,35 @@ impl ModelManager {
     }
 
     /// 确保服务在运行；已死则重启。
-    fn ensure_running(slot: &mut Option<LlamaServer>) -> Result<()> {
+    fn ensure_running(
+        slot: &mut Option<LlamaServer>,
+        model_rel: &str,
+        mmproj_rel: &str,
+        log_name: &str,
+        model_root: Option<PathBuf>,
+    ) -> Result<()> {
         let alive = slot.as_mut().map(|s| s.is_alive()).unwrap_or(false);
         if !alive {
             if slot.is_some() {
                 logln!("llama-server 已退出，正在重启...");
             }
             *slot = None; // 先释放旧的
-            *slot = Some(LlamaServer::start()?);
+            *slot = Some(LlamaServer::start(
+                model_rel, mmproj_rel, log_name, model_root,
+            )?);
         }
         Ok(())
     }
 
     pub fn init_model(&self) -> Result<()> {
         let mut guard = self.lock();
-        Self::ensure_running(&mut guard)
+        Self::ensure_running(
+            &mut guard,
+            "models/qwen2vl/model.gguf",
+            "models/qwen2vl/mmproj.gguf",
+            "intelnet-llama-server.log",
+            None,
+        )
     }
 
     pub fn analyze_image(&self, image_data: &str) -> Result<String> {
@@ -415,7 +443,13 @@ impl ModelManager {
         );
 
         let mut guard = self.lock();
-        Self::ensure_running(&mut guard)?;
+        Self::ensure_running(
+            &mut guard,
+            "models/qwen2vl/model.gguf",
+            "models/qwen2vl/mmproj.gguf",
+            "intelnet-llama-server.log",
+            None,
+        )?;
 
         let t = Instant::now();
         let text = guard
@@ -438,11 +472,34 @@ impl ModelManager {
         let raw = load_image_bytes(image_data)?;
         let jpeg = shrink_for_model(&raw)?;
         let mut guard = self.lock();
-        Self::ensure_running(&mut guard)?;
+        Self::ensure_running(
+            &mut guard,
+            "models/qwen2vl/model.gguf",
+            "models/qwen2vl/mmproj.gguf",
+            "intelnet-llama-server.log",
+            None,
+        )?;
         guard
             .as_ref()
             .context("服务未运行")?
             .describe_stream(&jpeg, BUTTON_PROMPT, 48, on_delta)
+    }
+
+    pub fn ocr_captcha(&self, image_data: &str) -> Result<String> {
+        let raw = load_image_bytes(image_data)?;
+        let jpeg = shrink_for_model_with_edge(&raw, OCR_MAX_EDGE)?;
+        let mut guard = self.ocr_server.lock().unwrap_or_else(|e| e.into_inner());
+        Self::ensure_running(
+            &mut guard,
+            "models/paddleocr-vl/PaddleOCR-VL-1.6-GGUF.gguf",
+            "models/paddleocr-vl/PaddleOCR-VL-1.6-GGUF-mmproj.gguf",
+            "intelnet-ocr-server.log",
+            None,
+        )?;
+        guard
+            .as_ref()
+            .context("OCR 服务未运行")?
+            .describe_stream(&jpeg, OCR_PROMPT, 32, |_| {})
     }
 
     /// 总结一段纯文本（网页内容）。
@@ -454,7 +511,13 @@ impl ModelManager {
     pub fn summarize_text_stream(&self, text: &str, on_delta: impl FnMut(&str)) -> Result<String> {
         let t_total = Instant::now();
         let mut guard = self.lock();
-        Self::ensure_running(&mut guard)?;
+        Self::ensure_running(
+            &mut guard,
+            "models/qwen2vl/model.gguf",
+            "models/qwen2vl/mmproj.gguf",
+            "intelnet-llama-server.log",
+            None,
+        )?;
 
         let t = Instant::now();
         let result = guard
@@ -473,5 +536,7 @@ impl ModelManager {
     pub fn shutdown(&self) {
         let mut guard = self.lock();
         *guard = None;
+        let mut ocr_guard = self.ocr_server.lock().unwrap_or_else(|e| e.into_inner());
+        *ocr_guard = None;
     }
 }

@@ -12,6 +12,7 @@ extern "C" {
     char* intelnet_analyze_image(const char* image_data);
     char* intelnet_analyze_image_stream(const char* image_data, int speak);
     char* intelnet_describe_button_stream(const char* image_data);
+    char* intelnet_ocr_captcha(const char* image_data, int speak);
     char* intelnet_summarize_text(const char* text);
     int intelnet_speak(const char* text);
     void intelnet_stop_speaking();
@@ -41,6 +42,8 @@ public:
 
     void DescribeButtonAsync(const std::string& image_data,
                              std::function<void(const std::string&, bool)> callback);
+    void OcrCaptchaAsync(const std::string& image_data,
+                         std::function<void(const std::string&, bool)> callback);
 
     // 总结网页文本（同步）
     std::string SummarizeText(const std::string& text);

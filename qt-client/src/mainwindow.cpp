@@ -147,6 +147,8 @@ void MainWindow::setupToolbar() {
              "Ctrl+Shift+S：页面摘要\n"
              "Ctrl+Shift+A：分析网页图片\n"
              "Ctrl+Shift+O：页面大纲\n"
+             "Ctrl+Shift+C：识别验证码\n"
+             "Ctrl+Shift+L：播放音频验证码\n"
              "Alt+D：描述页面中无 alt 的图片\n"
             "Ctrl+Shift+U：上传本地图片");
     });
@@ -166,6 +168,11 @@ void MainWindow::setupToolbar() {
 
     QShortcut *outlineShortcut = new QShortcut(QKeySequence("Ctrl+Shift+O"), this);
     connect(outlineShortcut, &QShortcut::activated, this, &MainWindow::onOutlineRequested);
+
+    QShortcut *captchaShortcut = new QShortcut(QKeySequence("Ctrl+Shift+C"), this);
+    connect(captchaShortcut, &QShortcut::activated, this, &MainWindow::onCaptchaRequested);
+    QShortcut *audioCaptchaShortcut = new QShortcut(QKeySequence("Ctrl+Shift+L"), this);
+    connect(audioCaptchaShortcut, &QShortcut::activated, this, &MainWindow::onAudioCaptchaRequested);
 }
 
 void MainWindow::setupConnections() {
@@ -193,6 +200,8 @@ void MainWindow::setupConnections() {
     connect(voicePanel_, &VoicePanel::analyzePageRequested, this, &MainWindow::onAnalyzePageClicked);
     connect(voicePanel_, &VoicePanel::analyzeImageRequested, this, &MainWindow::onAnalyzeImageClicked);
     connect(voicePanel_, &VoicePanel::uploadImageRequested, this, &MainWindow::onUploadImageClicked);
+    connect(voicePanel_, &VoicePanel::captchaRequested, this, &MainWindow::onCaptchaRequested);
+    connect(voicePanel_, &VoicePanel::audioCaptchaRequested, this, &MainWindow::onAudioCaptchaRequested);
 }
 
 void MainWindow::initializeRustCore() {
@@ -631,6 +640,61 @@ void MainWindow::onUploadImageClicked() {
 
     // 触发语音面板的图片分析
     voicePanel_->analyzeImageFromFile(fileName);
+}
+
+void MainWindow::onCaptchaRequested() {
+    showVoicePanel();
+    voicePanel_->showBusy("正在查找验证码...");
+    statusBar()->showMessage("正在查找验证码...", 3000);
+    browserWidget_->requestCaptchaCandidate([this](const BrowserWidget::CaptchaCandidate &candidate) {
+        if (candidate.id.isEmpty()) {
+            const QString message = "当前页面没有找到验证码图片";
+            voicePanel_->showTextResult(message);
+            statusBar()->showMessage(message, 5000);
+            return;
+        }
+        voicePanel_->showBusy("正在加载 OCR 模型并识别验证码...");
+        statusBar()->showMessage("正在加载 OCR 模型并识别验证码...", 0);
+        browserWidget_->captureElement(candidate.id, [this](const QImage &image) {
+            if (image.isNull()) {
+                voicePanel_->showError("无法截取验证码图片");
+                statusBar()->showMessage("无法截取验证码图片", 5000);
+                return;
+            }
+            QByteArray bytes;
+            QBuffer buffer(&bytes);
+            buffer.open(QIODevice::WriteOnly);
+            image.save(&buffer, "JPEG", 85);
+            const std::string data = ("data:image/jpeg;base64," + bytes.toBase64()).toStdString();
+            rustBridge_->OcrCaptchaAsync(data,
+                [this](const std::string &result, bool success) {
+                    QMetaObject::invokeMethod(this, [this, result, success]() {
+                        if (!success) {
+                            voicePanel_->showError("验证码识别失败");
+                            statusBar()->showMessage("验证码识别失败", 5000);
+                            return;
+                        }
+                        const QJsonDocument doc = QJsonDocument::fromJson(
+                            QByteArray::fromStdString(result));
+                        const QString text = doc.object().value("result").toString().trimmed();
+                        if (text.isEmpty()) {
+                            voicePanel_->showError("未识别到验证码");
+                            statusBar()->showMessage("未识别到验证码", 5000);
+                            return;
+                        }
+                        voicePanel_->showTextResult(text, false);
+                        statusBar()->showMessage("验证码识别完成", 5000);
+                    }, Qt::QueuedConnection);
+                });
+        });
+    });
+}
+
+void MainWindow::onAudioCaptchaRequested() {
+    showVoicePanel();
+    voicePanel_->showBusy("正在切换并播放音频验证码...");
+    statusBar()->showMessage("正在切换并播放音频验证码...", 5000);
+    browserWidget_->playAudioCaptcha();
 }
 
 } // namespace IntelNet

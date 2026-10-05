@@ -30,6 +30,8 @@ VoicePanel::VoicePanel(QWidget *parent)
     , analyzePageBtn_(nullptr)
     , analyzeImageBtn_(nullptr)
     , uploadImageBtn_(nullptr)
+    , captchaBtn_(nullptr)
+    , audioCaptchaBtn_(nullptr)
     , closeBtn_(nullptr)
     , rustBridge_(nullptr)
     , isPlaying_(false)
@@ -122,6 +124,11 @@ void VoicePanel::setupUi() {
     uploadImageBtn_ = createActionButton("folder", "上传图片", "Ctrl+Shift+U", content);
     contentLayout->addWidget(uploadImageBtn_);
 
+    captchaBtn_ = createActionButton("image", "识别验证码", "Ctrl+Shift+C", content);
+    contentLayout->addWidget(captchaBtn_);
+    audioCaptchaBtn_ = createActionButton("mic", "播放音频验证码", "Ctrl+Shift+L", content);
+    contentLayout->addWidget(audioCaptchaBtn_);
+
     contentLayout->addStretch();
 
     scroll->setWidget(content);
@@ -136,6 +143,8 @@ void VoicePanel::setupUi() {
     connect(analyzePageBtn_, &QPushButton::clicked, this, &VoicePanel::onAnalyzePageClicked);
     connect(analyzeImageBtn_, &QPushButton::clicked, this, &VoicePanel::onAnalyzeImageClicked);
     connect(uploadImageBtn_, &QPushButton::clicked, this, &VoicePanel::onUploadImageClicked);
+    connect(captchaBtn_, &QPushButton::clicked, this, &VoicePanel::captchaRequested);
+    connect(audioCaptchaBtn_, &QPushButton::clicked, this, &VoicePanel::audioCaptchaRequested);
 }
 
 QWidget* VoicePanel::buildHeader() {
