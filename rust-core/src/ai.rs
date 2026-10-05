@@ -24,6 +24,8 @@ const MAX_EDGE: u32 = 448;
 const MAX_TOKENS: u32 = 150;
 /// 发给模型的提示词。
 const PROMPT: &str = "请用中文详细描述这张图片。";
+const BUTTON_PROMPT: &str =
+    "这是一个网页按钮，只看图标样式，用中文一句话说出它的功能，只输出功能本身。";
 /// 页面摘要提示词前缀。
 const SUMMARY_PROMPT_PREFIX: &str =
     "以下是从网页中提取的结构化源码（包含 URL、标题、标题层级、正文、图片、链接等）。\
@@ -308,14 +310,20 @@ impl LlamaServer {
     }
 
     /// 流式请求：描述图片。
-    fn describe_stream(&self, jpeg: &[u8], on_delta: impl FnMut(&str)) -> Result<String> {
+    fn describe_stream(
+        &self,
+        jpeg: &[u8],
+        prompt: &str,
+        max_tokens: u32,
+        on_delta: impl FnMut(&str),
+    ) -> Result<String> {
         let b64 = base64::engine::general_purpose::STANDARD.encode(jpeg);
         let content = serde_json::json!([
-            { "type": "text", "text": PROMPT },
+            { "type": "text", "text": prompt },
             { "type": "image_url",
               "image_url": { "url": format!("data:image/jpeg;base64,{}", b64) } }
         ]);
-        self.stream_completion(content, MAX_TOKENS, 0.2, on_delta)
+        self.stream_completion(content, max_tokens, 0.2, on_delta)
     }
 
     /// 流式请求：总结纯文本（网页内容）。
@@ -327,7 +335,7 @@ impl LlamaServer {
 
     #[allow(dead_code)]
     fn describe(&self, jpeg: &[u8]) -> Result<String> {
-        self.describe_stream(jpeg, |_| {})
+        self.describe_stream(jpeg, PROMPT, MAX_TOKENS, |_| {})
     }
 }
 
@@ -413,13 +421,28 @@ impl ModelManager {
         let text = guard
             .as_ref()
             .context("服务未运行")?
-            .describe_stream(&jpeg, on_delta)?;
+            .describe_stream(&jpeg, PROMPT, MAX_TOKENS, on_delta)?;
         logln!(
             "推理耗时: {:?}，总耗时: {:?}",
             t.elapsed(),
             t_total.elapsed()
         );
         Ok(text)
+    }
+
+    pub fn analyze_button_stream(
+        &self,
+        image_data: &str,
+        on_delta: impl FnMut(&str),
+    ) -> Result<String> {
+        let raw = load_image_bytes(image_data)?;
+        let jpeg = shrink_for_model(&raw)?;
+        let mut guard = self.lock();
+        Self::ensure_running(&mut guard)?;
+        guard
+            .as_ref()
+            .context("服务未运行")?
+            .describe_stream(&jpeg, BUTTON_PROMPT, 48, on_delta)
     }
 
     /// 总结一段纯文本（网页内容）。

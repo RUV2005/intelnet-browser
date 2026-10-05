@@ -6,6 +6,8 @@
 #include <QWebEngineView>
 #include <QWebEnginePage>
 #include <QUrl>
+#include <QRectF>
+#include <QImage>
 #include <QStringList>
 #include <functional>
 
@@ -28,6 +30,11 @@ public:
         QString id;
     };
 
+    struct UnnamedButton {
+        QString id;
+        QRectF rect;
+    };
+
     explicit BrowserWidget(QWidget *parent = nullptr);
     ~BrowserWidget();
 
@@ -45,6 +52,9 @@ public:
     // 异步获取当前页面的结构化源码（URL/标题/描述/标题层级/正文/图片/链接）
     void requestPageSource(std::function<void(const QString&)> callback);
     void requestHeadingOutline(std::function<void(const QList<HeadingEntry>&)> callback);
+    void requestUnnamedButtons(std::function<void(const QList<UnnamedButton>&)> callback);
+    void captureElement(const QString &id, std::function<void(const QImage&)> callback);
+    void setButtonAriaLabel(const QString &id, const QString &label);
     void scrollToHeading(const QString &id);
 
     // 异步获取页面中所有图片的 URL

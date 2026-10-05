@@ -63,6 +63,8 @@ private:
     void showHeadingOutline(const QList<BrowserWidget::HeadingEntry> &headings);
     void showRedirectWarning(const QUrl &url);
     void analyzeNextMissingImage();
+    void requestUnnamedButtonsAfterImages();
+    void analyzeNextUnnamedButton();
 
     // UI 组件
     QToolBar *toolbar_;
@@ -85,6 +87,11 @@ private:
     QList<BrowserWidget::MissingAltImage> missingAltImages_;
     int missingAltIndex_;
     bool analyzingMissingImages_;
+    QList<BrowserWidget::UnnamedButton> unnamedButtons_;
+    int unnamedButtonIndex_;
+    int describedButtons_;
+    int skippedButtons_;
+    int describedImages_;
 };
 
 } // namespace IntelNet

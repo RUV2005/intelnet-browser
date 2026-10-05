@@ -98,7 +98,24 @@ void RustBridge::AnalyzeImageAsync(
             return;
         }
 
-        char* raw = intelnet_analyze_image_stream(image_data.c_str());
+        char* raw = intelnet_analyze_image_stream(image_data.c_str(), 1);
+        std::string result = raw
+            ? std::string(raw)
+            : R"({"success": false, "error": "分析失败"})";
+        if (raw) intelnet_free_string(raw);
+        callback(result, jsonSuccess(result));
+    }).detach();
+}
+
+void RustBridge::DescribeButtonAsync(
+    const std::string& image_data,
+    std::function<void(const std::string&, bool)> callback) {
+    std::thread([this, image_data, callback]() {
+        if (!initialized_) {
+            callback(R"({"success": false, "error": "核心库未初始化"})", false);
+            return;
+        }
+        char* raw = intelnet_describe_button_stream(image_data.c_str());
         std::string result = raw
             ? std::string(raw)
             : R"({"success": false, "error": "分析失败"})";

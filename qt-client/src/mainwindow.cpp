@@ -13,6 +13,7 @@
 #include <QUrlQuery>
 #include <QScrollArea>
 #include <QLabel>
+#include <QBuffer>
 
 namespace IntelNet {
 
@@ -31,6 +32,10 @@ MainWindow::MainWindow(QWidget *parent)
     , rustBridge_(nullptr)
     , missingAltIndex_(0)
     , analyzingMissingImages_(false)
+    , unnamedButtonIndex_(0)
+    , describedButtons_(0)
+    , skippedButtons_(0)
+    , describedImages_(0)
 {
     setupUi();
     setupToolbar();
@@ -475,11 +480,10 @@ void MainWindow::onDescribeMissingImagesClicked() {
         const QList<BrowserWidget::MissingAltImage> &images) {
         missingAltImages_ = images;
         missingAltIndex_ = 0;
+        describedImages_ = 0;
 
         if (missingAltImages_.isEmpty()) {
-            analyzingMissingImages_ = false;
-            voicePanel_->showTextResult("当前页面没有找到需要描述的图片。");
-            statusBar()->showMessage("当前页面没有找到需要描述的图片", 3000);
+            requestUnnamedButtonsAfterImages();
             return;
         }
 
@@ -497,8 +501,7 @@ void MainWindow::onDescribeMissingImagesClicked() {
 void MainWindow::analyzeNextMissingImage() {
     if (!analyzingMissingImages_ || missingAltIndex_ >= missingAltImages_.size()) {
         analyzingMissingImages_ = false;
-        voicePanel_->showTextResult(QString("已完成 %1 张图片的描述。").arg(missingAltImages_.size()));
-        statusBar()->showMessage("页面图片描述完成", 5000);
+        requestUnnamedButtonsAfterImages();
         return;
     }
 
@@ -518,6 +521,7 @@ void MainWindow::analyzeNextMissingImage() {
                     const QString description = doc.object().value("result").toString().trimmed();
                     if (!description.isEmpty()) {
                         browserWidget_->setImageAlt(image.index, "AI描述：" + description);
+                        ++describedImages_;
                         statusBar()->showMessage(
                             QString("第 %1/%2 张图片已写回描述").arg(displayIndex).arg(total), 3000);
                     } else {
@@ -531,6 +535,84 @@ void MainWindow::analyzeNextMissingImage() {
                 QTimer::singleShot(0, this, &MainWindow::analyzeNextMissingImage);
             }, Qt::QueuedConnection);
         });
+}
+
+void MainWindow::requestUnnamedButtonsAfterImages() {
+    analyzingMissingImages_ = true;
+    voicePanel_->showBusy("正在查找没有语义的按钮...");
+    statusBar()->showMessage("正在查找没有语义的按钮...", 3000);
+    browserWidget_->requestUnnamedButtons([this](
+        const QList<BrowserWidget::UnnamedButton> &buttons) {
+        unnamedButtons_ = buttons;
+        unnamedButtonIndex_ = 0;
+        describedButtons_ = 0;
+        skippedButtons_ = 0;
+        constexpr int maxButtonsPerRun = 10;
+        if (unnamedButtons_.size() > maxButtonsPerRun) {
+            skippedButtons_ = unnamedButtons_.size() - maxButtonsPerRun;
+            unnamedButtons_ = unnamedButtons_.mid(0, maxButtonsPerRun);
+            statusBar()->showMessage(
+                QString("发现 %1 个无语义按钮，本次最多处理 %2 个，剩余 %3 个跳过")
+                    .arg(buttons.size()).arg(maxButtonsPerRun).arg(skippedButtons_), 6000);
+        }
+        if (unnamedButtons_.isEmpty()) {
+            analyzingMissingImages_ = false;
+            const QString message = QString("已完成 %1 张图片的描述，未发现无语义按钮。").arg(describedImages_);
+            voicePanel_->showTextResult(message);
+            statusBar()->showMessage(message, 5000);
+            return;
+        }
+        analyzeNextUnnamedButton();
+    });
+}
+
+void MainWindow::analyzeNextUnnamedButton() {
+    if (unnamedButtonIndex_ >= unnamedButtons_.size()) {
+        analyzingMissingImages_ = false;
+        const QString message = skippedButtons_ > 0
+            ? QString("已为 %1 个按钮生成描述，另有 %2 个按钮未处理。")
+                  .arg(describedButtons_).arg(skippedButtons_)
+            : QString("已为 %1 个按钮生成描述。").arg(describedButtons_);
+        voicePanel_->showTextResult(message);
+        statusBar()->showMessage(message, 5000);
+        return;
+    }
+
+    const BrowserWidget::UnnamedButton button = unnamedButtons_.at(unnamedButtonIndex_);
+    const int displayIndex = unnamedButtonIndex_ + 1;
+    const int total = unnamedButtons_.size();
+    const QString progress = QString("正在分析第 %1/%2 个按钮...").arg(displayIndex).arg(total);
+    voicePanel_->showBusy(progress);
+    statusBar()->showMessage(progress, 0);
+
+    browserWidget_->captureElement(button.id, [this, button](const QImage &image) {
+        if (image.isNull()) {
+            ++unnamedButtonIndex_;
+            QTimer::singleShot(0, this, &MainWindow::analyzeNextUnnamedButton);
+            return;
+        }
+        QByteArray bytes;
+        QBuffer buffer(&bytes);
+        buffer.open(QIODevice::WriteOnly);
+        image.save(&buffer, "JPEG", 80);
+        const std::string data = ("data:image/jpeg;base64," + bytes.toBase64()).toStdString();
+        rustBridge_->DescribeButtonAsync(data,
+            [this, button](const std::string &result, bool success) {
+                QMetaObject::invokeMethod(this, [this, button, result, success]() {
+                    if (success) {
+                        const QJsonDocument doc = QJsonDocument::fromJson(
+                            QByteArray::fromStdString(result));
+                        const QString label = doc.object().value("result").toString().trimmed();
+                        if (!label.isEmpty()) {
+                            browserWidget_->setButtonAriaLabel(button.id, label);
+                            ++describedButtons_;
+                        }
+                    }
+                    ++unnamedButtonIndex_;
+                    QTimer::singleShot(0, this, &MainWindow::analyzeNextUnnamedButton);
+                }, Qt::QueuedConnection);
+            });
+    });
 }
 
 void MainWindow::onUploadImageClicked() {

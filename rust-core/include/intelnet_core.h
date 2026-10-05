@@ -20,7 +20,8 @@ int intelnet_init_model(void);
 // image_data: 图片数据（data URL、http URL 或本地路径）
 // 返回 JSON 字符串，需要调用 intelnet_free_string 释放
 char* intelnet_analyze_image(const char* image_data);
-char* intelnet_analyze_image_stream(const char* image_data);
+char* intelnet_analyze_image_stream(const char* image_data, int speak);
+char* intelnet_describe_button_stream(const char* image_data);
 
 // 总结一段纯文本（网页内容）
 // text: 网页正文

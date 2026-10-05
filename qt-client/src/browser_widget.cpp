@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QVariant>
+#include <QBuffer>
 
 namespace IntelNet {
 
@@ -445,6 +446,95 @@ void BrowserWidget::scrollToHeading(const QString &id) {
         "if(h)h.scrollIntoView({block:'start',behavior:'smooth'});})();")
         .arg(jsonLiteral);
     page()->runJavaScript(script);
+}
+
+void BrowserWidget::requestUnnamedButtons(
+    std::function<void(const QList<UnnamedButton>&)> callback) {
+    static const char *kScript = R"JS(
+(function () {
+  var out = [];
+  var nodes = document.querySelectorAll(
+    'button,input[type="button"],input[type="submit"],[role="button"]');
+  for (var i = 0; i < nodes.length; i++) {
+    var el = nodes[i];
+    var text = (el.innerText || '').replace(/\s+/g, ' ').trim();
+    var aria = (el.getAttribute('aria-label') || '').trim();
+    var title = (el.getAttribute('title') || '').trim();
+    var value = (el.value || '').trim();
+    if (text || aria || title || value) continue;
+
+    var rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    if (!el.id) el.id = '__intelnet_button_' + i;
+    out.push({id: el.id, x: rect.x, y: rect.y, width: rect.width, height: rect.height});
+  }
+  return JSON.stringify(out);
+})();
+)JS";
+
+    page()->runJavaScript(QString::fromUtf8(kScript),
+        [callback](const QVariant &v) {
+            QList<UnnamedButton> buttons;
+            const QJsonDocument doc = QJsonDocument::fromJson(v.toString().toUtf8());
+            if (doc.isArray()) {
+                for (const QJsonValue &value : doc.array()) {
+                    if (!value.isObject()) continue;
+                    const QJsonObject object = value.toObject();
+                    const QString id = object.value("id").toString();
+                    const double x = object.value("x").toDouble(-1);
+                    const double y = object.value("y").toDouble(-1);
+                    const double width = object.value("width").toDouble(0);
+                    const double height = object.value("height").toDouble(0);
+                    if (id.isEmpty() || width <= 0 || height <= 0) continue;
+                    buttons.append({id, QRectF(x, y, width, height)});
+                }
+            }
+            if (callback) callback(buttons);
+        });
+}
+
+void BrowserWidget::captureElement(const QString &id,
+                                   std::function<void(const QImage&)> callback) {
+    QJsonArray values;
+    values.append(id);
+    const QString jsonArray = QString::fromUtf8(
+        QJsonDocument(values).toJson(QJsonDocument::Compact));
+    const QString jsonLiteral = jsonArray.mid(1, jsonArray.size() - 2);
+    const QString script = QString(
+        "(function(){var e=document.getElementById(%1);"
+        "if(!e)return null;e.scrollIntoView({block:'center'});"
+        "var r=e.getBoundingClientRect();"
+        "return JSON.stringify({x:r.x,y:r.y,width:r.width,height:r.height});})();")
+        .arg(jsonLiteral);
+    page()->runJavaScript(script, [this, callback](const QVariant &v) {
+        const QJsonDocument doc = QJsonDocument::fromJson(v.toString().toUtf8());
+        if (!doc.isObject()) {
+            if (callback) callback(QImage());
+            return;
+        }
+        const QJsonObject object = doc.object();
+        const QRectF rect(object.value("x").toDouble(), object.value("y").toDouble(),
+                          object.value("width").toDouble(), object.value("height").toDouble());
+        QTimer::singleShot(120, this, [this, rect, callback]() {
+            const QPixmap shot = grab();
+            const qreal dpr = shot.devicePixelRatio();
+            const QRect crop(qRound(rect.x() * dpr), qRound(rect.y() * dpr),
+                             qRound(rect.width() * dpr), qRound(rect.height() * dpr));
+            const QRect bounded = crop.intersected(QRect(QPoint(0, 0), shot.size()));
+            if (callback) callback(bounded.isEmpty() ? QImage() : shot.copy(bounded).toImage());
+        });
+    });
+}
+
+void BrowserWidget::setButtonAriaLabel(const QString &id, const QString &label) {
+    QJsonArray values;
+    values.append(id);
+    values.append(label);
+    const QString json = QString::fromUtf8(
+        QJsonDocument(values).toJson(QJsonDocument::Compact));
+    page()->runJavaScript(QString(
+        "(function(){var a=%1;var e=document.getElementById(a[0]);"
+        "if(e)e.setAttribute('aria-label',a[1]);})();").arg(json));
 }
 
 void BrowserWidget::requestImageUrls(std::function<void(const QStringList&)> callback) {

@@ -110,7 +110,10 @@ pub unsafe extern "C" fn intelnet_analyze_image(image_data: *const c_char) -> *m
 /// 流式分析图片，并在完整句子生成后排队交给本地 TTS。
 /// 返回完整 JSON 字符串，供客户端显示最终分析结果。
 #[no_mangle]
-pub unsafe extern "C" fn intelnet_analyze_image_stream(image_data: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn intelnet_analyze_image_stream(
+    image_data: *const c_char,
+    speak: i32,
+) -> *mut c_char {
     if image_data.is_null() {
         return std::ptr::null_mut();
     }
@@ -130,8 +133,10 @@ pub unsafe extern "C" fn intelnet_analyze_image_stream(image_data: *const c_char
     let mut splitter = SentenceSplitter::new();
     let result = manager.analyze_image_stream(image_str, |piece| {
         for sentence in splitter.push(piece) {
-            if let Some(player) = TTS_PLAYER.lock().unwrap().as_ref() {
-                player.speak(sentence);
+            if speak != 0 {
+                if let Some(player) = TTS_PLAYER.lock().unwrap().as_ref() {
+                    player.speak(sentence);
+                }
             }
         }
     });
@@ -139,8 +144,10 @@ pub unsafe extern "C" fn intelnet_analyze_image_stream(image_data: *const c_char
     let json = match result {
         Ok(text) => {
             if let Some(sentence) = splitter.finish() {
-                if let Some(player) = TTS_PLAYER.lock().unwrap().as_ref() {
-                    player.speak(sentence);
+                if speak != 0 {
+                    if let Some(player) = TTS_PLAYER.lock().unwrap().as_ref() {
+                        player.speak(sentence);
+                    }
                 }
             }
             serde_json::json!({"success": true, "result": text})
@@ -148,6 +155,29 @@ pub unsafe extern "C" fn intelnet_analyze_image_stream(image_data: *const c_char
         Err(error) => serde_json::json!({"success": false, "error": error.to_string()}),
     };
 
+    CString::new(json.to_string())
+        .map(CString::into_raw)
+        .unwrap_or(std::ptr::null_mut())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn intelnet_describe_button_stream(image_data: *const c_char) -> *mut c_char {
+    if image_data.is_null() {
+        return std::ptr::null_mut();
+    }
+    let image_str = match CStr::from_ptr(image_data).to_str() {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let model = MODEL_MANAGER.lock().unwrap();
+    let Some(manager) = model.as_ref() else {
+        return std::ptr::null_mut();
+    };
+    let result = manager.analyze_button_stream(image_str, |_| {});
+    let json = match result {
+        Ok(text) => serde_json::json!({"success": true, "result": text}),
+        Err(error) => serde_json::json!({"success": false, "error": error.to_string()}),
+    };
     CString::new(json.to_string())
         .map(CString::into_raw)
         .unwrap_or(std::ptr::null_mut())
