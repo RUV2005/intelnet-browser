@@ -37,6 +37,7 @@ set(SOURCES
     src/voice_panel.cpp
     src/accessible_toolbar.cpp
     src/rust_bridge.cpp
+    src/model_downloader.cpp
     src/theme.cpp
 )
 
@@ -47,6 +48,7 @@ set(HEADERS
     src/voice_panel.h
     src/accessible_toolbar.h
     src/rust_bridge.h
+    src/model_downloader.h
     src/theme.h
 )
 

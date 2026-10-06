@@ -16,10 +16,12 @@
 #include <QMoveEvent>
 #include <QList>
 #include <memory>
+#include <QProgressDialog>
 
 #include "browser_widget.h"
 #include "voice_panel.h"
 #include "rust_bridge.h"
+#include "model_downloader.h"
 
 namespace IntelNet {
 
@@ -64,6 +66,11 @@ private:
     void setupToolbar();
     void setupConnections();
     void initializeRustCore();
+    void checkModelsAndStart();
+    void startModelDownload();
+    void onModelsReady();
+    void onModelDownloadFailed(const QString &message);
+    void onModelDownloadCancelled();
     void showVoicePanel();
     void showHeadingOutline(const QList<BrowserWidget::HeadingEntry> &headings);
     void showRedirectWarning(const QUrl &url);
@@ -88,6 +95,10 @@ private:
 
     // Rust 桥接
     std::unique_ptr<RustBridge> rustBridge_;
+    ModelDownloader *modelDownloader_;
+    QProgressDialog *modelProgressDialog_;
+    bool modelsReady_;
+    bool modelDownloadStarted_;
 
     // 当前页面的无 alt 图片分析队列
     QList<BrowserWidget::MissingAltImage> missingAltImages_;

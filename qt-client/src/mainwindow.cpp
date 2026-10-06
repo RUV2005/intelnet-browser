@@ -33,6 +33,10 @@ MainWindow::MainWindow(QWidget *parent)
     , voicePanel_(nullptr)
     , voiceDock_(nullptr)
     , rustBridge_(nullptr)
+    , modelDownloader_(new ModelDownloader(this))
+    , modelProgressDialog_(nullptr)
+    , modelsReady_(false)
+    , modelDownloadStarted_(false)
     , missingAltIndex_(0)
     , analyzingMissingImages_(false)
     , unnamedButtonIndex_(0)
@@ -43,12 +47,29 @@ MainWindow::MainWindow(QWidget *parent)
     setupUi();
     setupToolbar();
     setupConnections();
-    initializeRustCore();
+
+    connect(modelDownloader_, &ModelDownloader::progress, this,
+            [this](qint64 downloaded, qint64 total, const QString &fileName) {
+        if (!modelProgressDialog_) return;
+        if (total > 0) {
+            modelProgressDialog_->setRange(0, 1000);
+            modelProgressDialog_->setValue(qBound(0, static_cast<int>((downloaded * 1000) / total), 1000));
+        } else {
+            modelProgressDialog_->setRange(0, 0);
+        }
+        if (!fileName.isEmpty()) {
+            modelProgressDialog_->setLabelText(QString("正在下载模型：%1").arg(fileName));
+        }
+    });
+    connect(modelDownloader_, &ModelDownloader::completed, this, &MainWindow::onModelsReady);
+    connect(modelDownloader_, &ModelDownloader::failed, this, &MainWindow::onModelDownloadFailed);
+    connect(modelDownloader_, &ModelDownloader::cancelled, this, &MainWindow::onModelDownloadCancelled);
 
     // 设置窗口属性
     setWindowTitle("IntelNet 无障碍浏览器");
     resize(1200, 800);
     statusBar()->showMessage("就绪");
+    QTimer::singleShot(0, this, &MainWindow::checkModelsAndStart);
 }
 
 MainWindow::~MainWindow() {
@@ -252,6 +273,72 @@ void MainWindow::initializeRustCore() {
 
     // 传递 Rust 桥接给语音面板
     voicePanel_->setRustBridge(rustBridge_.get());
+}
+
+void MainWindow::checkModelsAndStart() {
+    if (ModelDownloader::modelsPresent()) {
+        onModelsReady();
+        return;
+    }
+
+    modelProgressDialog_ = new QProgressDialog(
+        "首次启动需要下载 AI 模型，约 3.5GB", "开始下载", 0, 1000, this);
+    modelProgressDialog_->setWindowTitle("下载 AI 模型");
+    modelProgressDialog_->setWindowModality(Qt::ApplicationModal);
+    modelProgressDialog_->setAutoClose(false);
+    modelProgressDialog_->setAutoReset(false);
+    modelProgressDialog_->setMinimumDuration(0);
+    modelProgressDialog_->setAccessibleName("AI 模型下载");
+    modelProgressDialog_->setAccessibleDescription(
+        "首次启动需要下载 AI 模型，约 3.5GB。按开始下载开始，按取消停止下载。");
+    connect(modelProgressDialog_, &QProgressDialog::canceled, this, [this]() {
+        if (!modelDownloadStarted_) {
+            startModelDownload();
+        } else {
+            modelDownloader_->cancel();
+        }
+    });
+    modelProgressDialog_->show();
+}
+
+void MainWindow::startModelDownload() {
+    if (!modelProgressDialog_) return;
+    modelDownloadStarted_ = true;
+    modelProgressDialog_->setCancelButtonText("取消");
+    modelProgressDialog_->setLabelText("正在准备下载 AI 模型...");
+    modelProgressDialog_->setRange(0, 0);
+    modelDownloader_->start();
+}
+
+void MainWindow::onModelsReady() {
+    modelsReady_ = true;
+    if (modelProgressDialog_) {
+        modelProgressDialog_->close();
+        modelProgressDialog_->deleteLater();
+        modelProgressDialog_ = nullptr;
+    }
+    initializeRustCore();
+}
+
+void MainWindow::onModelDownloadFailed(const QString &message) {
+    if (modelProgressDialog_) modelProgressDialog_->setCancelButtonText("重试");
+    const auto choice = QMessageBox::critical(this, "模型下载失败", message,
+                                               QMessageBox::Retry | QMessageBox::Cancel,
+                                               QMessageBox::Retry);
+    if (choice == QMessageBox::Retry) {
+        startModelDownload();
+    } else {
+        onModelDownloadCancelled();
+    }
+}
+
+void MainWindow::onModelDownloadCancelled() {
+    if (modelProgressDialog_) {
+        modelProgressDialog_->close();
+        modelProgressDialog_->deleteLater();
+        modelProgressDialog_ = nullptr;
+    }
+    statusBar()->showMessage("AI 模型未下载，AI 功能暂不可用");
 }
 
 // ===== 导航槽函数 =====

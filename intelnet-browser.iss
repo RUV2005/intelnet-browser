@@ -65,6 +65,8 @@ Source: "{#RustCoreRoot}\intelnet_core.dll"; DestDir: "{app}"; Flags: ignorevers
 Source: "installer\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 ; 打包 resource
 Source: "resources\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 技术用户和调试使用的模型下载后门
+Source: "download_models.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
