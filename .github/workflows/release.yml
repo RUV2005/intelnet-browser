@@ -22,6 +22,7 @@ env:
   RUST_BACKTRACE: 1
   CARGO_TERM_COLOR: always
   ISS_FILE: intelnet-browser.iss
+  G2PW_ONNX_URL: https://modelscope.cn/models/danmo6321/intelnet-piper-voices/resolve/master/g2pw.onnx
   VCREDIST_DEST: installer/vc_redist.x64.exe
 
 jobs:
@@ -186,7 +187,7 @@ jobs:
 
     - name: Setup portable Python and models
       shell: pwsh
-      run: ./setup_portable_python.ps1
+      run: .\setup_portable_python.ps1 -G2pwOnnxUrl $env:G2PW_ONNX_URL
 
     - name: Download VC++ Redistributable
       shell: pwsh
@@ -209,6 +210,7 @@ jobs:
       env:
         VERSION: ${{ steps.ver.outputs.version }}
       run: |
+        # 注意：版本号从 Inno 默认安装目录名解析；若将来安装时加 /DIR= 自定义路径，这里的正则要一起改
         $iscc = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) |
           ForEach-Object { Get-ChildItem "$_\Inno Setup *\ISCC.exe" -ErrorAction SilentlyContinue } |
           Sort-Object FullName -Descending |
