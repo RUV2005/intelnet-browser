@@ -180,7 +180,7 @@ jobs:
       shell: pwsh
       working-directory: qt-client/build/Release
       run: |
-        $wdq = Join-Path $env:QT_ROOT_DIR 'bin\windeployqt.exe'
+        $wdq = Join-Path $env:Qt6_DIR 'bin\windeployqt.exe'
         if (-not (Test-Path $wdq)) { throw "windeployqt not found at $wdq" }
         & $wdq --release IntelNetBrowser.exe
 
