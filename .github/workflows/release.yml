@@ -114,6 +114,7 @@ jobs:
         arch: 'win64_msvc2022_64'
         modules: 'qtwebengine qtwebchannel qtpositioning qtwebview'
         cache: true
+        py7zrversion: '==0.22.0'
 
     - name: Configure CMake
       working-directory: qt-client
@@ -161,6 +162,7 @@ jobs:
         arch: 'win64_msvc2022_64'
         modules: 'qtwebengine qtwebchannel qtpositioning qtwebview'
         cache: true
+        py7zrversion: '==0.22.0'
 
     - name: Resolve version from tag
       id: ver
