@@ -195,6 +195,15 @@ jobs:
         New-Item -ItemType Directory -Force -Path (Split-Path $env:VCREDIST_DEST) | Out-Null
         Invoke-WebRequest -Uri https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile $env:VCREDIST_DEST
 
+    - name: Verify staged files
+      shell: pwsh
+      run: |
+        $checks = @(
+          'resources/python/python.exe',
+          'resources/g2pW/g2pw.onnx'
+        )
+        foreach ($c in $checks) { if (-not (Test-Path $c)) { throw "Missing staged file: $c" } }
+
     - name: Install Inno Setup 7
       shell: pwsh
       run: |
