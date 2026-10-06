@@ -4,33 +4,53 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version for a test installer (no release is published)'
+        required: false
+        default: '0.0.0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 env:
   RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  ISS_FILE: intelnet-browser.iss
+  VCREDIST_DEST: installer/vc_redist.x64.exe
 
 jobs:
-  create-release:
-    name: Create Release
+  # ---------- 1. 门禁：lint ----------
+  lint:
+    name: Lint and Format Check
     runs-on: windows-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
 
     steps:
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
+    - uses: actions/checkout@v4
 
-  build-release:
-    name: Build Release
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable-msvc
+        components: rustfmt, clippy
+
+    - name: Check Rust formatting
+      working-directory: rust-core
+      run: cargo fmt --check
+
+    - name: Run Clippy
+      working-directory: rust-core
+      run: cargo clippy -- -D warnings
+
+  # ---------- 2. build（照抄 build.yml） ----------
+  rust-core:
+    name: Build Rust Core
     runs-on: windows-latest
-    needs: create-release
 
     steps:
     - uses: actions/checkout@v4
@@ -40,9 +60,47 @@ jobs:
       with:
         toolchain: stable-msvc
 
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          rust-core/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
     - name: Build Rust Core
       working-directory: rust-core
       run: cargo build --release
+
+    - name: Run Rust Tests
+      working-directory: rust-core
+      run: cargo test --release
+
+    - name: Upload Rust DLL
+      uses: actions/upload-artifact@v4
+      with:
+        name: rust-core-dll
+        path: |
+          rust-core/target/release/intelnet_core.dll
+          rust-core/target/release/intelnet_core.dll.lib
+        retention-days: 7
+
+  qt-client:
+    name: Build Qt Client
+    runs-on: windows-latest
+    needs: rust-core
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Rust DLL
+      uses: actions/download-artifact@v4
+      with:
+        name: rust-core-dll
+        path: rust-core/target/release/
 
     - name: Setup MSVC
       uses: microsoft/setup-msbuild@v1.1
@@ -54,33 +112,133 @@ jobs:
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2022_64'
-        modules: 'qtwebengine'
+        modules: 'qtwebengine qtwebchannel qtpositioning qtwebview'
+        cache: true
 
-    - name: Build Qt Client
+    - name: Configure CMake
       working-directory: qt-client
       run: |
         cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${{ env.Qt6_DIR }}
-        cmake --build build --config Release
 
-    - name: Package Release
-      run: |
-        mkdir release-package
-        cp qt-client/build/Release/IntelNetBrowser.exe release-package/
-        cp rust-core/target/release/intelnet_core.dll release-package/
-        cp README.md release-package/
-        cp LICENSE release-package/
-        cp BUILD_GUIDE.md release-package/
+    - name: Build Qt Client
+      working-directory: qt-client
+      run: cmake --build build --config Release
 
-    - name: Create ZIP
-      run: |
-        Compress-Archive -Path release-package/* -DestinationPath IntelNetBrowser-${{ github.ref_name }}-windows-x64.zip
-
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload Qt Executable
+      uses: actions/upload-artifact@v4
       with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./IntelNetBrowser-${{ github.ref_name }}-windows-x64.zip
-        asset_name: IntelNetBrowser-${{ github.ref_name }}-windows-x64.zip
-        asset_content_type: application/zip
+        name: intelnet-browser
+        path: qt-client/build/Release/IntelNetBrowser.exe
+        retention-days: 7
+
+  # ---------- 3. package：打 Inno 安装包 ----------
+  package:
+    name: Package Installer
+    runs-on: windows-latest
+    needs: [lint, rust-core, qt-client]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Rust DLL
+      uses: actions/download-artifact@v4
+      with:
+        name: rust-core-dll
+        path: rust-core/target/release/
+
+    - name: Download Qt Executable
+      uses: actions/download-artifact@v4
+      with:
+        name: intelnet-browser
+        path: qt-client/build/Release/
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.8.0'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2022_64'
+        modules: 'qtwebengine qtwebchannel qtpositioning qtwebview'
+        cache: true
+
+    - name: Resolve version from tag
+      id: ver
+      shell: pwsh
+      env:
+        REF_TYPE: ${{ github.ref_type }}
+        REF_NAME: ${{ github.ref_name }}
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        if ($env:REF_TYPE -eq 'tag') { $v = $env:REF_NAME.TrimStart('v') } else { $v = $env:INPUT_VERSION }
+        Write-Host "Version: $v"
+        "version=$v" >> $env:GITHUB_OUTPUT
+
+    - name: Deploy Qt runtime (windeployqt)
+      shell: pwsh
+      working-directory: qt-client/build/Release
+      run: |
+        $wdq = Join-Path $env:QT_ROOT_DIR 'bin\windeployqt.exe'
+        if (-not (Test-Path $wdq)) { throw "windeployqt not found at $wdq" }
+        & $wdq --release IntelNetBrowser.exe
+
+    - name: Setup portable Python and models
+      shell: pwsh
+      run: ./setup_portable_python.ps1
+
+    - name: Download VC++ Redistributable
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path (Split-Path $env:VCREDIST_DEST) | Out-Null
+        Invoke-WebRequest -Uri https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile $env:VCREDIST_DEST
+
+    - name: Install Inno Setup
+      shell: pwsh
+      run: choco install innosetup --no-progress -y
+
+    - name: Build installer
+      shell: pwsh
+      env:
+        VERSION: ${{ steps.ver.outputs.version }}
+      run: |
+        $iscc = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) |
+          ForEach-Object { Get-ChildItem "$_\Inno Setup *\ISCC.exe" -ErrorAction SilentlyContinue } |
+          Sort-Object FullName -Descending |
+          Select-Object -First 1 -ExpandProperty FullName
+        if (-not $iscc) { throw 'ISCC.exe not found' }
+        $info = (Get-Item $iscc).VersionInfo
+        Write-Host "Using $iscc (version $($info.ProductVersion))"
+        if ($info.FileMajorPart -lt 7) { throw "Inno Setup $($info.ProductVersion) is too old; the .iss requires 7.x" }
+        & $iscc "/DMyAppVersion=$env:VERSION" $env:ISS_FILE
+
+    - name: Upload installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: installer
+        path: installer/output/*.exe
+        retention-days: 14
+
+  # ---------- 4. publish：只在 tag 触发时发布 ----------
+  publish:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download installer
+      uses: actions/download-artifact@v4
+      with:
+        name: installer
+        path: installer/output
+
+    - name: Publish GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: installer/output/*.exe
+        generate_release_notes: true
+        body: |
+          > 安装包未签名，首次运行时 Windows SmartScreen 可能弹出警告，选择「更多信息 → 仍要运行」即可。
+          > The installer is not code-signed; Windows SmartScreen may show a warning on first run (More info → Run anyway).
