@@ -9,8 +9,10 @@ Piper TTS 常驻合成服务
 """
 import sys
 import struct
+import os
 from pathlib import Path
 from piper.voice import PiperVoice
+os.chdir(Path(__file__).parent)
 
 def main():
     if len(sys.argv) < 2:

@@ -39,6 +39,7 @@ resources/piper/*.onnx
 resources/models/**
 resources/piper/**
 resources/llama/**
+resources/python/**
 
 # Local tools, worktrees, and demo artifacts
 .claude/
@@ -64,3 +65,4 @@ desktop.ini
 # Test artifacts
 test_ffi.exe
 *.log
+resources/g2pW/*.onnx

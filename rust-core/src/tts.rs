@@ -7,6 +7,23 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 
+// ───────────────────────── 错误日志 ─────────────────────────
+// release 版没有控制台，eprintln 会丢进黑洞；关键失败同时写文件方便排错
+fn tts_log(msg: &str) {
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let path = std::env::temp_dir().join("intelnet_tts.log");
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(f, "[{ts}] {msg}");
+    }
+}
+
 // ───────────────────────── 切句器 ─────────────────────────
 
 pub struct SentenceSplitter {
@@ -99,11 +116,20 @@ struct PiperWorker {
 
 impl PiperWorker {
     fn spawn(model_path: &PathBuf) -> Result<Self> {
-        let python_exe = which::which("python")
-            .or_else(|_| which::which("python3"))
-            .context("找不到 python 或 python3")?;
+        let root = crate::ai::resources_root_for("piper/zh_CN-chaowei-medium.onnx")?;
 
-        let root = crate::ai::resources_root_for("piper/chaowen.onnx")?;
+        // 优先用安装包自带的 portable python，找不到再回退系统 python
+        let python_exe = {
+            let bundled = root.join("python").join("python.exe");
+            if bundled.is_file() {
+                bundled
+            } else {
+                which::which("python")
+                    .or_else(|_| which::which("python3"))
+                    .context("找不到 python 或 python3")?
+            }
+        };
+
         let script_path = root.join("tts_synthesize.py");
 
         let mut cmd = Command::new(&python_exe);
@@ -122,6 +148,8 @@ impl PiperWorker {
         let mut child = cmd.spawn().context("无法启动 Python TTS 工作进程")?;
 
         // 预热：发送一个简短的测试文本，强制加载所有模型
+        // 注意：预热失败直接 bail，不把死 worker 放进池子，
+        // 否则之后每次合成都静默失败（UI 显示在读但没声）
         let warmup_text = "预热";
         let temp_file = std::env::temp_dir().join(format!(
             "piper_warmup_{:?}.txt",
@@ -129,24 +157,31 @@ impl PiperWorker {
         ));
         std::fs::write(&temp_file, warmup_text.as_bytes()).ok();
 
-        // 发送预热请求
-        if let Some(stdin) = child.stdin.as_mut() {
-            let _ = writeln!(stdin, "{}", temp_file.display());
-            let _ = stdin.flush();
-        }
+        let warmup_result: Result<()> = (|| {
+            let stdin = child.stdin.as_mut().context("无法获取 stdin")?;
+            writeln!(stdin, "{}", temp_file.display()).context("预热写入失败")?;
+            stdin.flush().context("预热 flush 失败")?;
 
-        // 读取预热响应（强制等待模型加载完成）
-        if let Some(stdout) = child.stdout.as_mut() {
+            let stdout = child.stdout.as_mut().context("无法获取 stdout")?;
             let mut len_buf = [0u8; 4];
-            let _ = std::io::Read::read_exact(stdout, &mut len_buf);
+            std::io::Read::read_exact(stdout, &mut len_buf).context("预热读取长度失败")?;
             let len = u32::from_le_bytes(len_buf) as usize;
-            if len > 0 {
-                let mut buf = vec![0u8; len];
-                let _ = std::io::Read::read_exact(stdout, &mut buf);
+            if len == 0 {
+                anyhow::bail!("预热返回空结果（Python 脚本可能崩了）");
             }
-        }
+            let mut buf = vec![0u8; len];
+            std::io::Read::read_exact(stdout, &mut buf).context("预热读取 PCM 失败")?;
+            Ok(())
+        })();
 
         let _ = std::fs::remove_file(&temp_file);
+
+        if let Err(e) = warmup_result {
+            let msg = format!("TTS 工作进程预热失败: {e:#}");
+            eprintln!("{msg}");
+            tts_log(&msg);
+            return Err(e);
+        }
 
         Ok(Self { child })
     }
@@ -209,8 +244,8 @@ pub struct PiperEngine {
 
 impl PiperEngine {
     pub fn new() -> Result<Self> {
-        let root = crate::ai::resources_root_for("piper/chaowen.onnx")?;
-        let model_path = root.join("piper").join("chaowen.onnx");
+        let root = crate::ai::resources_root_for("piper/zh_CN-chaowei-medium.onnx")?;
+        let model_path = root.join("piper").join("zh_CN-chaowei-medium.onnx");
 
         if !model_path.exists() {
             anyhow::bail!("找不到 Piper 模型: {:?}", model_path);
@@ -247,7 +282,9 @@ impl PiperEngine {
                         tx_clone.send(Ok(w)).ok();
                     }
                     Err(e) => {
-                        eprintln!("  工作进程 {} 启动失败: {}", i + 1, e);
+                        let msg = format!("工作进程 {} 启动失败: {:#}", i + 1, e);
+                        eprintln!("  {msg}");
+                        tts_log(&format!("TTS {msg}"));
                         tx_clone.send(Err(e)).ok();
                     }
                 }
@@ -263,7 +300,9 @@ impl PiperEngine {
         }
 
         if workers.is_empty() {
-            anyhow::bail!("无法启动任何 TTS 工作进程");
+            let msg = "无法启动任何 TTS 工作进程".to_string();
+            tts_log(&format!("TTS {msg}"));
+            anyhow::bail!(msg);
         }
 
         println!(
@@ -335,7 +374,9 @@ impl TtsPlayer {
             let engine = match PiperEngine::new() {
                 Ok(e) => e,
                 Err(e) => {
-                    eprintln!("TTS 引擎初始化失败: {e}");
+                    let msg = format!("TTS 引擎初始化失败: {e:#}");
+                    eprintln!("{msg}");
+                    tts_log(&msg);
                     return;
                 }
             };
@@ -343,7 +384,9 @@ impl TtsPlayer {
             let (_stream, handle) = match rodio::OutputStream::try_default() {
                 Ok(v) => v,
                 Err(e) => {
-                    eprintln!("无法打开音频设备: {e}");
+                    let msg = format!("无法打开音频设备: {e}");
+                    eprintln!("{msg}");
+                    tts_log(&msg);
                     return;
                 }
             };
@@ -351,7 +394,9 @@ impl TtsPlayer {
             let sink = match rodio::Sink::try_new(&handle) {
                 Ok(s) => s,
                 Err(e) => {
-                    eprintln!("无法创建播放队列: {e}");
+                    let msg = format!("无法创建播放队列: {e}");
+                    eprintln!("{msg}");
+                    tts_log(&msg);
                     return;
                 }
             };
@@ -399,7 +444,11 @@ impl TtsPlayer {
                                             tx_result.send(Cmd::SpeakReady(ep, seq, samples, rate));
                                     }
                                 }
-                                Err(e) => eprintln!("[tts] 句子 {} 合成失败: {e}", seq),
+                                Err(e) => {
+                                    let msg = format!("[tts] 句子 {seq} 合成失败: {e:#}");
+                                    eprintln!("{msg}");
+                                    tts_log(&msg);
+                                }
                             }
                         });
                     }

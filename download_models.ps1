@@ -14,8 +14,8 @@ $ErrorActionPreference = "Stop"
 $QWEN_REPO = "danmo6321/intelnet-Qwen2-VL-2B-GGUF"
 $QWEN_REVISION = "master"
 $QWEN_FILES = @("model.gguf", "mmproj.gguf")
-$PIPER_MODEL_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/chaowen/medium/zh_CN-chaowen-medium.onnx"
-$PIPER_CONFIG_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/zh/zh_CN/chaowen/medium/zh_CN-chaowen-medium.onnx.json"
+$PIPER_MODEL_URL = "https://www.modelscope.cn/models/danmo6321/intelnet-piper-voices/resolve/master/zh_CN-chaowei-medium.onnx"
+$PIPER_CONFIG_URL = "https://www.modelscope.cn/models/danmo6321/intelnet-piper-voices/resolve/master/zh_CN-chaowei-medium.onnx.json"
 
 $RESOURCES_DIR = Join-Path $PSScriptRoot "resources"
 $MODELS_DIR = Join-Path $RESOURCES_DIR "models"
@@ -91,8 +91,8 @@ if (-not $SkipPiper) {
     Write-Host "[*] Downloading Piper TTS model..." -ForegroundColor Yellow
     Write-Host "    URL: $PIPER_MODEL_URL" -ForegroundColor Gray
 
-    $piperPath = Join-Path $PIPER_DIR "chaowen.onnx"
-    $piperConfigPath = Join-Path $PIPER_DIR "chaowen.onnx.json"
+    $piperPath = Join-Path $PIPER_DIR "zh_CN-chaowei-medium.onnx"
+    $piperConfigPath = Join-Path $PIPER_DIR "zh_CN-chaowei-medium.onnx.json"
 
     if (Test-Path $piperPath) {
         Write-Host "[!] Model already exists: $piperPath" -ForegroundColor Yellow
