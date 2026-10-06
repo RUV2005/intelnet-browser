@@ -68,6 +68,10 @@ Source: "resources\*"; DestDir: "{app}\resources"; Flags: ignoreversion recurses
 ; 技术用户和调试使用的模型下载后门
 Source: "download_models.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
+[Dirs]
+Name: "{app}\resources\models"; Permissions: users-modify
+Name: "{app}\resources\piper"; Permissions: users-modify
+
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
