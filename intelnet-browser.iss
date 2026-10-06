@@ -63,6 +63,8 @@ Source: "{#BuildRoot}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Source: "{#RustCoreRoot}\intelnet_core.dll"; DestDir: "{app}"; Flags: ignoreversion
 ; vc_redist 放临时目录，装完删除，不进程序目录
 Source: "installer\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+; 打包 resource
+Source: "resources\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
