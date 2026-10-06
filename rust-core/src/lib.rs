@@ -52,10 +52,8 @@ pub extern "C" fn intelnet_init_model() -> i32 {
     }
 }
 
-/// 分析图片
-/// image_data: 图片数据（data URL、http URL 或本地路径）
-/// 分析图片内容（支持本地路径或 HTTP URL）
-/// 返回 JSON 字符串，需要调用 intelnet_free_string 释放
+/// 分析图片内容（支持 data URL、http URL 或本地路径）
+/// 返回 JSON 字符串，需要调用 `intelnet_free_string` 释放
 ///
 /// # Safety
 ///
@@ -109,6 +107,11 @@ pub unsafe extern "C" fn intelnet_analyze_image(image_data: *const c_char) -> *m
 
 /// 流式分析图片，并在完整句子生成后排队交给本地 TTS。
 /// 返回完整 JSON 字符串，供客户端显示最终分析结果。
+///
+/// # Safety
+///
+/// 调用者必须确保 `image_data` 是有效的 null-terminated C 字符串指针。
+/// 返回的指针必须通过 `intelnet_free_string` 释放。
 #[no_mangle]
 pub unsafe extern "C" fn intelnet_analyze_image_stream(
     image_data: *const c_char,
@@ -160,6 +163,13 @@ pub unsafe extern "C" fn intelnet_analyze_image_stream(
         .unwrap_or(std::ptr::null_mut())
 }
 
+/// 分析按钮图片并返回描述。
+/// 返回 JSON 字符串，需要调用 `intelnet_free_string` 释放。
+///
+/// # Safety
+///
+/// 调用者必须确保 `image_data` 是有效的 null-terminated C 字符串指针。
+/// 返回的指针必须通过 `intelnet_free_string` 释放。
 #[no_mangle]
 pub unsafe extern "C" fn intelnet_describe_button_stream(image_data: *const c_char) -> *mut c_char {
     if image_data.is_null() {
@@ -183,6 +193,13 @@ pub unsafe extern "C" fn intelnet_describe_button_stream(image_data: *const c_ch
         .unwrap_or(std::ptr::null_mut())
 }
 
+/// 识别验证码图片中的文字，可选择朗读（`speak != 0`）。
+/// 返回 JSON 字符串，需要调用 `intelnet_free_string` 释放。
+///
+/// # Safety
+///
+/// 调用者必须确保 `image_data` 是有效的 null-terminated C 字符串指针。
+/// 返回的指针必须通过 `intelnet_free_string` 释放。
 #[no_mangle]
 pub unsafe extern "C" fn intelnet_ocr_captcha(
     image_data: *const c_char,
@@ -224,6 +241,13 @@ pub unsafe extern "C" fn intelnet_ocr_captcha(
         .unwrap_or(std::ptr::null_mut())
 }
 
+/// 解释表单内容，可选择朗读（`speak != 0`）。
+/// 返回 JSON 字符串，需要调用 `intelnet_free_string` 释放。
+///
+/// # Safety
+///
+/// 调用者必须确保 `form_json` 是有效的 null-terminated C 字符串指针。
+/// 返回的指针必须通过 `intelnet_free_string` 释放。
 #[no_mangle]
 pub unsafe extern "C" fn intelnet_explain_form(
     form_json: *const c_char,
@@ -266,10 +290,7 @@ pub unsafe extern "C" fn intelnet_explain_form(
 }
 
 /// 总结一段纯文本（网页内容）
-/// text: 网页正文
-/// 返回 JSON 字符串，需要调用 intelnet_free_string 释放
-/// 总结文本内容
-/// 返回 JSON 字符串，需要调用 intelnet_free_string 释放
+/// 返回 JSON 字符串，需要调用 `intelnet_free_string` 释放
 ///
 /// # Safety
 ///
@@ -320,9 +341,6 @@ pub unsafe extern "C" fn intelnet_summarize_text(text: *const c_char) -> *mut c_
     }
 }
 
-/// TTS 朗读文本
-/// text: 要朗读的文本
-/// 返回 0 表示成功，非 0 表示失败
 /// 语音朗读文本
 /// 返回 0 表示成功，-1 表示参数错误，-2 表示 TTS 未初始化
 ///

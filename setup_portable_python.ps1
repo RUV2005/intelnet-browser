@@ -1,4 +1,4 @@
-# setup_portable_python.ps1
+﻿# setup_portable_python.ps1
 # 一键搭建安装包自带的 portable Python（含 piper-tts 中文语音链路）
 # 在项目根目录运行：.\setup_portable_python.ps1
 # 可选参数：
