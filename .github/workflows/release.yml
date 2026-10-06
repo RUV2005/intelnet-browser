@@ -214,9 +214,10 @@ jobs:
           Sort-Object FullName -Descending |
           Select-Object -First 1 -ExpandProperty FullName
         if (-not $iscc) { throw 'ISCC.exe not found' }
-        $info = (Get-Item $iscc).VersionInfo
-        Write-Host "Using $iscc (version $($info.ProductVersion))"
-        if ($info.FileMajorPart -lt 7) { throw "Inno Setup $($info.ProductVersion) is too old; the .iss requires 7.x" }
+        $dirName = Split-Path (Split-Path $iscc -Parent) -Leaf
+        $major = if ($dirName -match 'Inno Setup (\d+)') { [int]$Matches[1] } else { 0 }
+        Write-Host "Using $iscc (detected major version $major)"
+        if ($major -lt 7) { throw "Inno Setup major version $major is too old; the .iss requires 7.x" }
         & $iscc "/DMyAppVersion=$env:VERSION" $env:ISS_FILE
 
     - name: Upload installer
