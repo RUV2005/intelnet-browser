@@ -23,6 +23,7 @@ env:
   CARGO_TERM_COLOR: always
   ISS_FILE: intelnet-browser.iss
   G2PW_ONNX_URL: https://modelscope.cn/models/danmo6321/intelnet-piper-voices/resolve/master/g2pw.onnx
+  LLAMA_ZIP_URL: https://download.guangji.online/llama-b11193-bin-win-cpu-x64.zip
   VCREDIST_DEST: installer/vc_redist.x64.exe
 
 jobs:
@@ -189,6 +190,23 @@ jobs:
       shell: pwsh
       run: .\setup_portable_python.ps1 -G2pwOnnxUrl $env:G2PW_ONNX_URL
 
+    - name: Download llama.cpp (llama-server)
+      shell: pwsh
+      run: |
+        $dir = 'qt-client/build/Release/resources/llama'
+        $zip = "$env:TEMP\llama-bin-win-cpu-x64.zip"
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        Invoke-WebRequest -Uri $env:LLAMA_ZIP_URL -OutFile $zip
+        if ((Get-Item $zip).Length -lt 1MB) { throw 'llama.cpp download too small, likely not a zip' }
+        Expand-Archive -Path $zip -DestinationPath $dir -Force
+        # 若 zip 套了一层目录，把 llama-server.exe 所在目录的内容提到 $dir 顶层
+        if (-not (Test-Path "$dir/llama-server.exe")) {
+          $exe = Get-ChildItem $dir -Recurse -Filter llama-server.exe | Select-Object -First 1
+          if (-not $exe) { throw 'llama-server.exe not found in the downloaded zip' }
+          $dest = (Resolve-Path $dir).Path
+          Get-ChildItem $exe.Directory.FullName -Force | Move-Item -Destination $dest -Force
+        }
+
     - name: Download VC++ Redistributable
       shell: pwsh
       run: |
@@ -200,7 +218,8 @@ jobs:
       run: |
         $checks = @(
           'resources/python/python.exe',
-          'resources/g2pW/g2pw.onnx'
+          'resources/g2pW/g2pw.onnx',
+          'qt-client/build/Release/resources/llama/llama-server.exe'
         )
         foreach ($c in $checks) { if (-not (Test-Path $c)) { throw "Missing staged file: $c" } }
 
