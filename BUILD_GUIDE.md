@@ -39,7 +39,7 @@ IntelNet Browser
 2. **Qt 6**
    - 下载: https://www.qt.io/download
    - 选择 Qt 6.5+ (包含 WebEngine 模块)
-   - 安装路径: `C:\Qt\6.5.3\msvc2022_64`
+   - 安装路径: `C:\Qt\6.5.3\msvc2019_64`
 
 3. **Rust**
    - 下载: https://rustup.rs/
@@ -206,17 +206,10 @@ copy rust-core\target\release\intelnet_core.dll qt-client\build\Release\
    `stdext::make_checked_array_iterator` 两行定义包进
    `#if _MSC_VER < 1938 ... #endif`（与 Qt 6.8 的做法一致）。
 
-## 下一步开发
-
-1. **完善 TTS 模块** - 实现句子分割和流式朗读
-2. **页面分析** - 提取网页文本并生成摘要
-3. **图片选择** - 在网页中点击图片进行分析
-4. **设置界面** - 允许用户自定义选项
-5. **快捷键系统** - 完整的键盘导航支持
 
 ## 许可证
 
-MIT License
+GPLv3，详见 LICENSE
 
 ## 联系方式
 
