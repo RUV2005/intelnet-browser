@@ -34,6 +34,3 @@ User-pinned direction: minimal premium software in the spirit of Apple/Vercel, w
 
 unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
 
-## Unresolved decisions
-
-Verified release downloads, screenshots, and live GitHub URLs remain open and are represented by honest project links or synthetic browser demonstration content.
