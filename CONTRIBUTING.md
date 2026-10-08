@@ -37,8 +37,8 @@
 
 1. **Fork 仓库**
    ```bash
-   git clone https://github.com/yourusername/intelnet.git
-   cd intelnet
+   git clone https://github.com/RUV2005/intelnet-browser.git
+   cd intelnet-browser
    ```
 
 2. **创建分支**
@@ -147,4 +147,4 @@ docs: update build instructions
 
 ## 许可证
 
-提交代码即表示你同意将代码以 MIT 许可证授权。
+提交代码即表示你同意将代码以 GPLv3 许可证授权。
