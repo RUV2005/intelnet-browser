@@ -1,224 +1,144 @@
-# 明镜浏览器 (MingJing Browser)
+# IntelNet Browser
 
 <div align="center">
 
-**Making the web easier to see, understand, and hear**
+**Make the web easier to see, understand, and hear**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Qt 6](https://img.shields.io/badge/Qt-6.x-green.svg)](https://www.qt.io/)
-[![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Qt 6](https://img.shields.io/badge/Qt-6.5-green.svg)](https://www.qt.io/)
+[![Rust](https://img.shields.io/badge/Rust-stable-orange.svg)](https://www.rust-lang.org/)
 
-[Features](#features) • [Architecture](#architecture) • [Getting Started](#getting-started) • [Building](#building) • [Contributing](#contributing)
+[Features](#features) • [Architecture](#architecture) • [Download](#download) • [Build from source](#build-from-source) • [Contributing](#contributing)
 
 </div>
 
 ---
 
-## Overview
+## About
 
-MingJing Browser is an open-source accessibility-focused web browser that integrates AI-powered content understanding, image analysis, and text-to-speech capabilities directly into the browsing experience. Built with Qt WebEngine and a Rust AI core, it makes web content more accessible to everyone.
+IntelNet Browser (明镜浏览器) is an open-source accessibility browser that bakes AI content understanding, image analysis, and speech synthesis directly into the browsing experience. Qt WebEngine on the front, a Rust AI core underneath, and **all inference runs locally — your data never leaves the device**.
 
 ## Features
 
-### 🔍 **Intelligent Page Summarization**
-- AI-powered content extraction from complex web pages
-- Structured summaries with key points highlighted
-- Understanding based on DOM structure analysis
+### 📄 Page Summaries
+Reads the page DOM (title, headings, body text, images, links) and generates a Chinese summary with a local vision-language model. No screenshot OCR involved.
 
-### 🖼️ **Advanced Image Analysis**
-- Visual content recognition and description
-- Chart and diagram interpretation
-- Context-aware image understanding
+### 🖼️ Image Analysis
+Click any image on a web page and the local vision model describes it in Chinese, including charts and diagrams.
 
-### 🔊 **Natural Text-to-Speech**
-- Chinese language TTS powered by Piper engine
-- Natural voice synthesis with adjustable speed
-- Seamless reading of selected text or full page summaries
+### 🔘 Button Function Recognition
+For icon-only buttons with unclear meaning, the AI looks at the icon style and tells you what it does in one sentence.
 
-### ⚡ **Fast & Lightweight**
-- Built on Qt 6 WebEngine for modern web standards
-- Rust-powered AI core for performance and safety
-- Efficient C FFI bridge between frontend and backend
+### 🔢 CAPTCHA Reading
+PaddleOCR-VL recognizes CAPTCHAs locally and reads them aloud character by character. Failed recognitions are reported honestly instead of reading out a wrong guess.
+
+### 🔊 Chinese Text-to-Speech
+Piper-based Chinese speech synthesis with adjustable speed. Reads selected text or full-page summaries.
+
+### ⌨️ Accessible Operation
+Keyboard shortcuts, focus indicators, high contrast; the install and model-download flows are screen-reader operable.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────┐
-│        Qt 6 Client Layer            │
-│  WebEngine • Shortcuts • HiDPI      │
+│           Qt 6 Client                │
+│   WebEngine • Voice Panel • Hotkeys  │
 └─────────────────────────────────────┘
-                  │
-              C FFI Bridge
-                  │
+                  │ C FFI
 ┌─────────────────────────────────────┐
-│         Rust AI Core                │
-│  Content Analysis • Image Vision    │
-│  Piper TTS • Model Integration      │
+│           Rust AI Core               │
+│  llama-server ×2 • Piper TTS        │
 └─────────────────────────────────────┘
 ```
 
-**Technology Stack:**
-- **Frontend**: Qt 6 WebEngine, QML, C++
-- **AI Core**: Rust, distilled language models (1.5B-3B parameters)
-- **TTS Engine**: Piper (Chinese language support)
-- **Inference**: llama.cpp / ONNX Runtime
-- **Bridge**: C FFI for safe cross-language communication
+- **Frontend**: Qt 6.5 WebEngine (C++)
+- **AI inference**: llama.cpp, with Qwen2-VL-2B-Instruct-GGUF (language + vision projector) and PaddleOCR-VL each running as a local inference server
+- **Speech synthesis**: Piper (zh_CN-chaowei-medium) + g2pw polyphone correction, portable Python bundled, no system Python required
+- **Bridge**: C FFI
 
-## Getting Started
+## Download
 
-### Prerequisites
+### Requirements
 
-- **Qt 6.5+** with WebEngine module
-- **Rust 1.70+** (stable toolchain)
-- **CMake 3.20+**
-- **Python 3.8+** (for build scripts)
+- Windows 10/11 64-bit
+- 8GB+ RAM recommended (each AI server holds ~1.4GB resident; 4GB machines work but are tight)
+- ~3.5GB of model files downloaded on first launch (in-app downloader with cancel/retry/skip-existing)
 
-### Installation
+### Install
 
-**Option 1: Download Pre-built Binary** (Coming Soon)
+1. Download `intelnet-browser-setup-*.exe` (~300MB) from [Releases](https://github.com/RUV2005/intelnet-browser/releases)
+2. Run the installer
+3. On first launch, follow the prompt to download the AI models
+
+Model files are distributed via ModelScope; URLs are listed in `download_models.ps1`.
+
+## Build from source
+
+### Requirements
+
+- Visual Studio 2022 (with "Desktop development with C++")
+- Qt 6.5.3 (msvc2019_64, with WebEngine)
+- Rust stable-msvc toolchain
+- CMake 3.20+
+- Inno Setup 6+ (only for building the installer)
+
+Note: MSVC 14.4+ removed `stdext::checked_array_iterator`, which Qt 6.5.3 still references (`error C3861`). Either use Qt 6.8+ or patch the Qt headers as described in `BUILD_GUIDE.md`.
+
+### Steps
 
 ```bash
-# Download from releases page
-# Extract and run
+# 1. Build the Rust core
+cd rust-core
+cargo build --release
+
+# 2. Build the Qt client
+cd ../qt-client
+build.bat C:\Qt\6.5.3\msvc2019_64
+
+# 3. Package the installer (optional)
+cd ..
+iscc installer\intelnet-browser.iss
 ```
 
-**Option 2: Build from Source**
+See [BUILD_GUIDE.md](BUILD_GUIDE.md) for details.
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/mingjing-browser.git
-cd mingjing-browser
-
-# Build the project
-./build.sh
-
-# Run
-./build/mingjing-browser
-```
-
-See [BUILD_GUIDE.md](BUILD_GUIDE.md) for detailed build instructions.
-
-## Project Structure
+## Project layout
 
 ```
-mingjing-browser/
-├── src/
-│   ├── qt-client/          # Qt 6 frontend
-│   │   ├── main.cpp
-│   │   ├── browser/        # Browser UI components
-│   │   └── qml/            # QML interface files
-│   ├── rust-core/          # Rust AI core
-│   │   ├── src/
-│   │   │   ├── lib.rs      # FFI exports
-│   │   │   ├── ai/         # AI model integration
-│   │   │   ├── tts/        # Text-to-speech
-│   │   │   └── vision/     # Image analysis
-│   │   └── Cargo.toml
-│   └── bridge/             # C FFI bridge layer
-├── models/                 # Distilled AI models
-├── website/                # Project landing page
-├── docs/                   # Documentation
-├── tests/                  # Test suites
-├── CMakeLists.txt
-└── README.md
+intelnet-browser/
+├── qt-client/                # Qt 6 frontend
+├── rust-core/                # Rust AI/TTS core
+├── installer/                # Inno Setup packaging
+├── resources/                # Runtime assets (llama.cpp, g2pW tables, ...)
+├── website/                  # Project website
+├── download_models.ps1       # Model download script (fallback/debug)
+└── setup_portable_python.ps1 # Portable Python packager
 ```
-
-## Model Distillation
-
-MingJing Browser uses distilled small language models for on-device AI inference:
-
-- **Text Understanding**: 1.5B parameter model (~800MB quantized)
-- **Image Analysis**: 3B parameter vision model (~1.5GB quantized)
-- **TTS**: Piper engine (~50MB)
-
-**Total footprint**: ~2.5GB with all models loaded
-
-### Why Distillation?
-
-- ✅ **Privacy**: All processing happens locally, no data leaves your device
-- ✅ **Speed**: 10-40x faster than cloud APIs (50-100ms response time)
-- ✅ **Offline**: Works without internet connection
-- ✅ **Cost**: No API fees, one-time training cost only
-
-See [DISTILLATION.md](docs/DISTILLATION.md) for details on our model training process.
 
 ## Roadmap
 
-### Current Status: Alpha
-
-- [x] Basic browser functionality with Qt WebEngine
-- [x] AI-powered page summarization
-- [x] Image content analysis
-- [x] Chinese TTS integration
-- [x] Project website and branding
-- [ ] Model distillation and quantization
-- [ ] Offline inference integration
-- [ ] Keyboard shortcut system
-- [ ] High contrast theme support
-- [ ] Multi-language support (English, Chinese)
-
-### Future Plans
-
-- Screen reader integration (NVDA, JAWS)
-- Custom voice training for TTS
-- Browser extension API
-- Mobile platform support (Android, iOS)
-- Community-contributed model improvements
+- [x] Page summaries / image analysis / Chinese TTS
+- [x] Icon-button function recognition
+- [x] Local CAPTCHA recognition and reading
+- [ ] Complex form explanation and required-field checks (v1.0.0)
+- [ ] Real-time webpage captioning for hearing-impaired users (V2)
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Ways to Contribute
-
-- 🐛 Report bugs and issues
-- 💡 Suggest new features
-- 📝 Improve documentation
-- 🧪 Add test coverage
-- 🎨 Design UI/UX improvements
-- 🤖 Train better distilled models
-- 🌍 Translate to other languages
-
-## Development
-
-### Running Tests
-
-```bash
-# Run all tests
-cargo test --all
-ctest --test-dir build
-
-# Run specific test suite
-cargo test --package rust-core
-```
-
-### Code Style
-
-- **Rust**: Follow `rustfmt` and `clippy` recommendations
-- **C++**: Follow Qt coding conventions
-- **CMake**: Use modern CMake practices (targets, not variables)
+Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+GPLv3 — see [LICENSE](LICENSE).
 
-## Acknowledgments
+## Links
 
-- **Qt Project** for the excellent WebEngine framework
-- **Piper TTS** for open-source Chinese speech synthesis
-- **llama.cpp** for efficient model inference
-- **Rust Community** for safety and performance tools
-
-## Contact
-
-- **Project Website**: [https://mingjing-browser.dev](https://mingjing-browser.dev)
-- **Issue Tracker**: [GitHub Issues](https://github.com/yourusername/mingjing-browser/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/mingjing-browser/discussions)
+- **Website**: https://guangji.online
+- **Issues**: [GitHub Issues](https://github.com/RUV2005/intelnet-browser/issues)
 
 ---
 
 <div align="center">
-Made with ❤️ for accessibility
-
-**Making the web accessible, one page at a time**
+Built with ❤️ for accessibility
 </div>
